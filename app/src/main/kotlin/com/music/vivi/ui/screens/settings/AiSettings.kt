@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.music.vivi.LocalPlayerAwareWindowInsets
 import com.music.vivi.R
+import com.music.vivi.constants.AiAdditionalPromptKey
 import com.music.vivi.constants.AiProviderKey
 import com.music.vivi.constants.DeeplApiKey
 import com.music.vivi.constants.DeeplFormalityKey
@@ -59,6 +60,7 @@ fun AiSettings(
     scrollBehavior: TopAppBarScrollBehavior,
 ) {
     var aiProvider by rememberPreference(AiProviderKey, "OpenRouter")
+    var additionalPrompt by rememberPreference(AiAdditionalPromptKey, "")
     var openRouterApiKey by rememberPreference(OpenRouterApiKey, "")
     var openRouterBaseUrl by rememberPreference(OpenRouterBaseUrlKey, "https://openrouter.ai/api/v1/chat/completions")
     var openRouterModel by rememberPreference(OpenRouterModelKey, "google/gemini-2.5-flash-lite")
@@ -148,6 +150,7 @@ fun AiSettings(
     var showTranslateModeDialog by rememberSaveable { mutableStateOf(false) }
     var showTranslateModeHelpDialog by rememberSaveable { mutableStateOf(false) }
     var showLanguageDialog by rememberSaveable { mutableStateOf(false) }
+    var showAdditionalPromptDialog by rememberSaveable { mutableStateOf(false) }
     var showApiKeyDialog by rememberSaveable { mutableStateOf(false) }
     var showDeeplApiKeyDialog by rememberSaveable { mutableStateOf(false) }
     var showDeeplFormalityDialog by rememberSaveable { mutableStateOf(false) }
@@ -274,6 +277,22 @@ fun AiSettings(
             current = translateLanguage,
             values = LanguageCodeToName.keys.sortedBy { LanguageCodeToName[it] },
             valueText = { LanguageCodeToName[it] ?: it }
+        )
+    }
+
+    if (showAdditionalPromptDialog) {
+        TextFieldDialog(
+            title = { Text(stringResource(R.string.ai_additional_prompt)) },
+            icon = { Icon(painterResource(R.drawable.tune), null) },
+            initialTextFieldValue = TextFieldValue(text = additionalPrompt),
+            placeholder = { Text(stringResource(R.string.ai_additional_prompt_hint)) },
+            singleLine = false,
+            isInputValid = { true },
+            onDone = {
+                additionalPrompt = it
+                showAdditionalPromptDialog = false
+            },
+            onDismiss = { showAdditionalPromptDialog = false }
         )
     }
 
@@ -494,6 +513,20 @@ fun AiSettings(
             title = stringResource(R.string.ai_translation_mode),
             items = buildList {
                 if (aiProvider != "DeepL") {
+                    add(
+                        Material3SettingsItem(
+                            icon = painterResource(R.drawable.tune),
+                            title = { Text(stringResource(R.string.ai_additional_prompt)) },
+                            description = {
+                                Text(
+                                    additionalPrompt.ifBlank { stringResource(R.string.ai_additional_prompt_hint) },
+                                    maxLines = 3,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                )
+                            },
+                            onClick = { showAdditionalPromptDialog = true }
+                        )
+                    )
                     add(
                         Material3SettingsItem(
                             icon = painterResource(R.drawable.translate),

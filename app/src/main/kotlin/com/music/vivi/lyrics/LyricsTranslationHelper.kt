@@ -111,14 +111,14 @@ object LyricsTranslationHelper {
         return result
     }
 
-    fun getCachedTranslations(lyrics: List<LyricsEntry>, mode: String, language: String): List<String>? {
+    fun getCachedTranslations(lyrics: List<LyricsEntry>, mode: String, language: String, additionalPrompt: String = ""): List<String>? {
         val lyricsText = lyrics.filter { it.text.isNotBlank() }.joinToString("\n") { it.text }
-        val key = getCacheKey(lyricsText, mode, language)
+        val key = getCacheKey(lyricsText, TranslationPrompt.cacheMode(mode, additionalPrompt), language)
         return translationCache[key]
     }
 
-    fun applyCachedTranslations(lyrics: List<LyricsEntry>, mode: String, language: String): Boolean {
-        val cached = getCachedTranslations(lyrics, mode, language) ?: return false
+    fun applyCachedTranslations(lyrics: List<LyricsEntry>, mode: String, language: String, additionalPrompt: String = ""): Boolean {
+        val cached = getCachedTranslations(lyrics, mode, language, additionalPrompt) ?: return false
         val nonEmptyEntries = lyrics.mapIndexedNotNull { index, entry ->
             if (entry.text.isNotBlank()) index to entry else null
         }
@@ -176,7 +176,9 @@ object LyricsTranslationHelper {
         lyricsEntity: LyricsEntity?,
         targetLanguage: String,
         mode: String,
+        additionalPrompt: String = "",
     ) {
+        val cacheMode = TranslationPrompt.cacheMode(mode, additionalPrompt)
         // Always clear translations first
         lyrics.forEach { it.translatedTextFlow.value = null }
 
@@ -189,7 +191,7 @@ object LyricsTranslationHelper {
             _hasActiveTranslations.value = false
             return
         }
-        if (lyricsEntity.translationMode != mode) {
+        if (lyricsEntity.translationMode != cacheMode) {
             _hasActiveTranslations.value = false
             return
         }
@@ -209,7 +211,7 @@ object LyricsTranslationHelper {
         // don't need API calls. This ensures translations persist through app restarts
         // (loaded from DB) without wasting API calls.
         val lyricsText = lyrics.filter { it.text.isNotBlank() }.joinToString("\n") { it.text }
-        val cacheKey = getCacheKey(lyricsText, mode, targetLanguage)
+        val cacheKey = getCacheKey(lyricsText, cacheMode, targetLanguage)
         translationCache[cacheKey] = translatedLines
         _hasActiveTranslations.value = true
     }
@@ -229,7 +231,10 @@ object LyricsTranslationHelper {
         useStreaming: Boolean = true,
         songId: String = "",
         database: MusicDatabase? = null,
+        additionalPrompt: String = "",
     ) {
+        val effectivePrompt = if (provider == "DeepL") "" else additionalPrompt
+        val cacheMode = TranslationPrompt.cacheMode(mode, effectivePrompt)
         translationJob?.cancel()
         _status.value = TranslationStatus.Translating
 
@@ -264,7 +269,7 @@ object LyricsTranslationHelper {
                 val fullText = nonEmptyEntries.joinToString("\n") { it.second.text }
 
                 // Check cache first
-                val cacheKey = getCacheKey(fullText, mode, targetLanguage)
+                val cacheKey = getCacheKey(fullText, cacheMode, targetLanguage)
                 val cachedTranslations = translationCache[cacheKey]
                 if (cachedTranslations != null && cachedTranslations.size >= nonEmptyEntries.size) {
                     // Use cached translations
@@ -281,13 +286,15 @@ object LyricsTranslationHelper {
                     if (songId.isNotBlank() && database != null) {
                         try {
                             val currentLyrics = database.lyrics(songId).first()
-                            if (currentLyrics != null && currentLyrics.translatedLyrics.isNullOrBlank()) {
+                            if (currentLyrics != null &&
+                                (currentLyrics.translatedLyrics.isNullOrBlank() || currentLyrics.translationMode != cacheMode)
+                            ) {
                                 database.query {
                                     upsert(
                                         currentLyrics.copy(
                                             translatedLyrics = cachedTranslations.joinToString("\n"),
                                             translationLanguage = targetLanguage,
-                                            translationMode = mode,
+                                            translationMode = cacheMode,
                                         ),
                                     )
                                 }
@@ -334,6 +341,7 @@ object LyricsTranslationHelper {
                         apiKey = apiKey,
                         model = model,
                         mode = mode,
+                        additionalPrompt = effectivePrompt,
                     )
                 } else if (useStreaming && provider != "Custom") {
                     Timber.d("Using streaming for translation with provider: $provider")
@@ -349,6 +357,7 @@ object LyricsTranslationHelper {
                         baseUrl = baseUrl,
                         model = model,
                         mode = mode,
+                        additionalPrompt = effectivePrompt,
                     ).collect { chunk ->
                         Timber.v("Received streaming chunk: $chunk")
                         when (chunk) {
@@ -396,6 +405,7 @@ object LyricsTranslationHelper {
                         baseUrl = baseUrl,
                         model = model,
                         mode = mode,
+                        additionalPrompt = effectivePrompt,
                     )
                 }
 
@@ -405,7 +415,7 @@ object LyricsTranslationHelper {
                     }
 
                     // Cache the translations
-                    val cacheKey2 = getCacheKey(fullText, mode, targetLanguage)
+                    val cacheKey2 = getCacheKey(fullText, cacheMode, targetLanguage)
                     translationCache[cacheKey2] = translatedLines
 
                     // Save to database if songId is provided
@@ -419,7 +429,7 @@ object LyricsTranslationHelper {
                                             currentLyrics.copy(
                                                 translatedLyrics = translatedLines.joinToString("\n"),
                                                 translationLanguage = targetLanguage,
-                                                translationMode = mode,
+                                                translationMode = cacheMode,
                                             ),
                                         )
                                     }

@@ -5,6 +5,8 @@
 
 package com.music.vivi.api
 
+import com.music.vivi.lyrics.TranslationPrompt
+
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -39,7 +41,8 @@ object OpenRouterStreamingService {
         apiKey: String,
         baseUrl: String,
         model: String,
-        mode: String
+        mode: String,
+        additionalPrompt: String = "",
     ): Flow<StreamChunk> = flow {
         if (text.isBlank()) {
             emit(StreamChunk.Error("Input text is empty"))
@@ -62,6 +65,8 @@ CRITICAL RULES:
 5. Return EXACTLY $lineCount items in the array
 6. If uncertain, provide best approximation but maintain line count"""
 
+            val lyricsInput = if (additionalPrompt.isBlank()) "Input ($lineCount lines):\n$text\n\n" else ""
+
             val userPrompt = when (mode) {
                 "Transcribed" -> """Transcribe/transliterate the following $lineCount lines phonetically into $targetLanguage script.
 
@@ -72,10 +77,7 @@ CRITICAL REQUIREMENTS:
 - Preserve the original pronunciation as closely as possible
 - Keep punctuation and formatting
 
-Input ($lineCount lines):
-$text
-
-Output MUST be a JSON array with EXACTLY $lineCount strings."""
+${lyricsInput}Output MUST be a JSON array with EXACTLY $lineCount strings."""
 
                 else -> """Translate the following $lineCount lines to $targetLanguage.
 
@@ -85,10 +87,7 @@ IMPORTANT:
 - Keep punctuation appropriate for target language
 - Preserve line-by-line structure exactly
 
-Input ($lineCount lines):
-$text
-
-Output MUST be a JSON array with EXACTLY $lineCount strings."""
+${lyricsInput}Output MUST be a JSON array with EXACTLY $lineCount strings."""
             }
 
             val messages = JSONArray().apply {
@@ -98,7 +97,7 @@ Output MUST be a JSON array with EXACTLY $lineCount strings."""
                 })
                 put(JSONObject().apply {
                     put("role", "user")
-                    put("content", userPrompt)
+                    put("content", TranslationPrompt.append(userPrompt, additionalPrompt, text))
                 })
             }
 

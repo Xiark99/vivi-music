@@ -158,6 +158,7 @@ import com.music.vivi.constants.LyricsTextSizeKey
 import com.music.vivi.constants.PlayerBackgroundStyle
 import com.music.vivi.constants.OpenRouterApiKey
 import com.music.vivi.constants.DeeplApiKey
+import com.music.vivi.constants.AiAdditionalPromptKey
 import com.music.vivi.constants.AiProviderKey
 import com.music.vivi.constants.OpenRouterBaseUrlKey
 import com.music.vivi.constants.OpenRouterModelKey
@@ -274,6 +275,8 @@ fun Lyrics(
     val openRouterApiKey by rememberPreference(OpenRouterApiKey, "")
     val deeplApiKey by rememberPreference(DeeplApiKey, "")
     val aiProvider by rememberPreference(AiProviderKey, "OpenRouter")
+    val additionalPrompt by rememberPreference(AiAdditionalPromptKey, "")
+    val effectiveAdditionalPrompt = if (aiProvider == "DeepL") "" else additionalPrompt
     val openRouterBaseUrl by rememberPreference(OpenRouterBaseUrlKey, "https://openrouter.ai/api/v1/chat/completions")
     val openRouterModel by rememberPreference(OpenRouterModelKey, "google/gemini-2.5-flash-lite")
     val translateLanguage by rememberPreference(TranslateLanguageKey, "en")
@@ -498,19 +501,20 @@ fun Lyrics(
     }
     
     // Load translations from database on initial display
-    LaunchedEffect(lines, lyricsEntity, translateLanguage, translateMode) {
+    LaunchedEffect(lines, lyricsEntity, translateLanguage, translateMode, effectiveAdditionalPrompt) {
         if (lines.isNotEmpty() && lyricsEntity != null) {
             LyricsTranslationHelper.loadTranslationsFromDatabase(
                 lyrics = lines,
                 lyricsEntity = lyricsEntity,
                 targetLanguage = translateLanguage,
-                mode = translateMode
+                mode = translateMode,
+                additionalPrompt = effectiveAdditionalPrompt
             )
         }
     }
     
     // Listen for manual trigger
-    LaunchedEffect(showLyrics, lines.size) {
+    LaunchedEffect(showLyrics, lines.size, effectiveAdditionalPrompt) {
         LyricsTranslationHelper.manualTrigger.collect {
             val effectiveApiKey = if (aiProvider == "DeepL") deeplApiKey else openRouterApiKey
             if (showLyrics && lines.isNotEmpty() && effectiveApiKey.isNotBlank()) {
@@ -521,6 +525,7 @@ fun Lyrics(
                     baseUrl = openRouterBaseUrl,
                     model = openRouterModel,
                     mode = translateMode,
+                    additionalPrompt = effectiveAdditionalPrompt,
                     scope = scope,
                     context = context,
                     provider = aiProvider,
