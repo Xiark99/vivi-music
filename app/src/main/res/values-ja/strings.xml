@@ -423,4 +423,6 @@
     <string name="last_backed_up">最終バックアップ: %s</string>
     <string name="never_backed_up">なし</string>
     <string name="autobackup_settings">自動バックアップ設定</string>
+    <string name="ai_additional_prompt">追加プロンプト</string>
+    <string name="ai_additional_prompt_hint">既存の歌詞翻訳指示に追加する要望を入力します。空欄の場合は通常どおり翻訳します。</string>
 </resources>

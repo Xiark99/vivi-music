@@ -95,6 +95,8 @@ fun LyricsV2(
     val openRouterApiKey by rememberPreference(OpenRouterApiKey, "")
     val deeplApiKey by rememberPreference(DeeplApiKey, "")
     val aiProvider by rememberPreference(AiProviderKey, "OpenRouter")
+    val additionalPrompt by rememberPreference(AiAdditionalPromptKey, "")
+    val effectiveAdditionalPrompt = if (aiProvider == "DeepL") "" else additionalPrompt
     val openRouterBaseUrl by rememberPreference(OpenRouterBaseUrlKey, "https://openrouter.ai/api/v1/chat/completions")
     val openRouterModel by rememberPreference(OpenRouterModelKey, "google/gemini-2.5-flash-lite")
     val translateLanguage by rememberPreference(TranslateLanguageKey, "en")
@@ -278,18 +280,19 @@ fun LyricsV2(
                     }
                 }
                 
-                LaunchedEffect(lines, currentLyrics, translateLanguage, translateMode) {
+                LaunchedEffect(lines, currentLyrics, translateLanguage, translateMode, effectiveAdditionalPrompt) {
                     if (lines.isNotEmpty() && currentLyrics != null) {
                         LyricsTranslationHelper.loadTranslationsFromDatabase(
                             lyrics = lines,
                             lyricsEntity = currentLyrics,
                             targetLanguage = translateLanguage,
-                            mode = translateMode
+                            mode = translateMode,
+                            additionalPrompt = effectiveAdditionalPrompt
                         )
                     }
                 }
                 
-                LaunchedEffect(showLyrics, lines.size) {
+                LaunchedEffect(showLyrics, lines.size, effectiveAdditionalPrompt) {
                     LyricsTranslationHelper.manualTrigger.collect {
                         val effectiveApiKey = if (aiProvider == "DeepL") deeplApiKey else openRouterApiKey
                         if (showLyrics && lines.isNotEmpty() && effectiveApiKey.isNotBlank()) {
@@ -300,6 +303,7 @@ fun LyricsV2(
                                 baseUrl = openRouterBaseUrl,
                                 model = openRouterModel,
                                 mode = translateMode,
+                                additionalPrompt = effectiveAdditionalPrompt,
                                 scope = coroutineScope,
                                 context = context,
                                 provider = aiProvider,

@@ -5,6 +5,8 @@
 
 package com.music.vivi.api
 
+import com.music.vivi.lyrics.TranslationPrompt
+
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -33,6 +35,7 @@ object MistralService {
         mode: String,
         maxRetries: Int = 3,
         sourceLanguage: String? = null,
+        additionalPrompt: String = "",
     ): Result<List<String>> =
         withContext(Dispatchers.IO) {
             var currentAttempt = 0
@@ -56,6 +59,8 @@ CRITICAL RULES:
 5. Return EXACTLY $lineCount items in the array
 6. If uncertain, provide best approximation but maintain line count"""
 
+                    val lyricsInput = if (additionalPrompt.isBlank()) "Input ($lineCount lines):\n$text\n\n" else ""
+
                     val userPrompt =
                         when (mode) {
                             "Romanized" -> {
@@ -76,10 +81,7 @@ Examples of correct simple romanization:
 - Japanese "東京" → "toukyou" or "tokyo" (not "tōkyō")
 - Korean "서울" → "seoul" (not "sŏul")
 
-Input ($lineCount lines):
-$text
-
-Output MUST be a JSON array with EXACTLY $lineCount strings using ONLY simple ASCII characters."""
+${lyricsInput}Output MUST be a JSON array with EXACTLY $lineCount strings using ONLY simple ASCII characters."""
                             }
 
                             "Transcribed" -> {
@@ -99,10 +101,7 @@ Examples:
 - English "Hello" to Hindi → "हेलो" (phonetic)
 - Korean "안녕하세요" to Hindi → "अन्न्योंग हासेयो" (phonetic)
 
-Input ($lineCount lines):
-$text
-
-Output MUST be a JSON array with EXACTLY $lineCount strings in $targetLanguage script."""
+${lyricsInput}Output MUST be a JSON array with EXACTLY $lineCount strings in $targetLanguage script."""
                             }
 
                             else -> {
@@ -115,10 +114,7 @@ IMPORTANT:
 - Preserve line-by-line structure exactly
 - For song lyrics, prioritize singability
 
-Input ($lineCount lines):
-$text
-
-Output MUST be a JSON array with EXACTLY $lineCount strings."""
+${lyricsInput}Output MUST be a JSON array with EXACTLY $lineCount strings."""
                             }
                         }
 
@@ -127,7 +123,7 @@ Output MUST be a JSON array with EXACTLY $lineCount strings."""
                             put(
                                 JSONObject().apply {
                                     put("role", "user")
-                                    put("content", userPrompt)
+                                    put("content", TranslationPrompt.append(userPrompt, additionalPrompt, text))
                                 },
                             )
                         }
