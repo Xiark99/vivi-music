@@ -176,7 +176,6 @@ import com.music.vivi.constants.SelectedThemeColorKey
 import com.music.vivi.constants.SlimNavBarHeight
 import com.music.vivi.constants.SlimNavBarKey
 import com.music.vivi.constants.FloatingNavBarKey
-import com.music.vivi.constants.StopMusicOnTaskClearKey
 import com.music.vivi.constants.UseNewMiniPlayerDesignKey
 import com.music.vivi.constants.UseAppleMiniPlayerKey
 import com.music.vivi.db.MusicDatabase
@@ -241,7 +240,6 @@ import androidx.compose.material3.LocalContentColor
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     companion object {
-        private const val TASK_CLEAR_DEBUG_TAG = "VIVI_TASK_CLEAR_DEBUG"
         private const val ACTION_SEARCH = "com.music.vivi.action.SEARCH"
         private const val ACTION_LIBRARY = "com.music.vivi.action.LIBRARY"
     }
@@ -300,7 +298,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
-        Timber.tag(TASK_CLEAR_DEBUG_TAG).d("MainActivity.onStart: start; serviceBound=$serviceBound")
         // Request notification permission on Android 13+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
@@ -311,73 +308,28 @@ class MainActivity : ComponentActivity() {
         // On Android 12+, we can't start foreground services from background
         // Use BIND_AUTO_CREATE which will create the service if needed
         // The service will call startForeground() in onCreate() when bound
-        Timber.tag(TASK_CLEAR_DEBUG_TAG).d(
-            "MainActivity.onStart: calling bindService; serviceBoundBefore=$serviceBound"
-        )
-        val bindSucceeded = bindService(
+        if (bindService(
             Intent(this, MusicService::class.java),
             serviceConnection,
             BIND_AUTO_CREATE
-        )
-        Timber.tag(TASK_CLEAR_DEBUG_TAG).d(
-            "MainActivity.onStart: bindService returned=$bindSucceeded"
-        )
-        if (bindSucceeded) {
+        )) {
             serviceBound = true
         }
-        Timber.tag(TASK_CLEAR_DEBUG_TAG).d("MainActivity.onStart: complete; serviceBound=$serviceBound")
     }
 
     override fun onStop() {
-        Timber.tag(TASK_CLEAR_DEBUG_TAG).d(
-            "MainActivity.onStop: start; isFinishing=$isFinishing, serviceBound=$serviceBound"
-        )
         if (!isFinishing && serviceBound) {
-            Timber.tag(TASK_CLEAR_DEBUG_TAG).d("MainActivity.onStop: executing unbindService")
             unbindService(serviceConnection)
             serviceBound = false
-            Timber.tag(TASK_CLEAR_DEBUG_TAG).d("MainActivity.onStop: unbind complete; serviceBound=false")
-        } else {
-            Timber.tag(TASK_CLEAR_DEBUG_TAG).d(
-                "MainActivity.onStop: skipping unbindService; isFinishing=$isFinishing, serviceBound=$serviceBound"
-            )
         }
         super.onStop()
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        val stopMusicOnTaskClear = dataStore.get(StopMusicOnTaskClearKey, false)
-        val connection = playerConnection
-        val isPlaying = connection?.isPlaying?.value
-        Timber.tag(TASK_CLEAR_DEBUG_TAG).d(
-            "MainActivity.onDestroy: start; isFinishing=$isFinishing, " +
-                "stopMusicOnTaskClear=$stopMusicOnTaskClear, " +
-                "playerConnectionPresent=${connection != null}, isPlaying=$isPlaying, " +
-                "serviceBound=$serviceBound"
-        )
-        if (stopMusicOnTaskClear &&
-            isPlaying == true &&
-            isFinishing
-        ) {
-            Timber.tag(TASK_CLEAR_DEBUG_TAG).d("MainActivity.onDestroy: executing stopService")
-            val serviceStopped = stopService(Intent(this, MusicService::class.java))
-            Timber.tag(TASK_CLEAR_DEBUG_TAG).d(
-                "MainActivity.onDestroy: stopService returned=$serviceStopped"
-            )
-            playerConnection = null
-        } else {
-            Timber.tag(TASK_CLEAR_DEBUG_TAG).d("MainActivity.onDestroy: skipping stopService")
-        }
         if (serviceBound) {
-            Timber.tag(TASK_CLEAR_DEBUG_TAG).d("MainActivity.onDestroy: executing unbindService")
             unbindService(serviceConnection)
             serviceBound = false
-            Timber.tag(TASK_CLEAR_DEBUG_TAG).d(
-                "MainActivity.onDestroy: unbind complete; serviceBound=false"
-            )
-        } else {
-            Timber.tag(TASK_CLEAR_DEBUG_TAG).d("MainActivity.onDestroy: skipping unbindService")
         }
     }
 

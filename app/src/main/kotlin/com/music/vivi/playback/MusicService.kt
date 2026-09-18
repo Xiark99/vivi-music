@@ -26,7 +26,6 @@ import android.media.audiofx.LoudnessEnhancer
 import android.net.ConnectivityManager
 import android.os.Binder
 import android.os.Build
-import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.content.getSystemService
 import androidx.core.net.toUri
@@ -131,6 +130,7 @@ import com.music.vivi.constants.ScrobbleMinSongDurationKey
 import com.music.vivi.constants.ShowLyricsKey
 import com.music.vivi.constants.ShuffleModeKey
 import com.music.vivi.constants.ShufflePlaylistFirstKey
+import com.music.vivi.constants.StopMusicOnTaskClearKey
 import com.music.vivi.constants.PreventDuplicateTracksInQueueKey
 import com.music.vivi.constants.SimilarContent
 import com.music.vivi.constants.SkipSilenceInstantKey
@@ -493,7 +493,6 @@ class MusicService :
     }
 
     override fun onCreate() {
-        Timber.tag(TASK_CLEAR_DEBUG_TAG).d("MusicService.onCreate")
         super.onCreate()
         isRunning = true
 
@@ -3510,7 +3509,6 @@ class MusicService :
     }
 
     override fun onDestroy() {
-        Timber.tag(TASK_CLEAR_DEBUG_TAG).d("MusicService.onDestroy: isRunning=$isRunning")
         isRunning = false
 
         try {
@@ -3542,23 +3540,12 @@ class MusicService :
         super.onDestroy()
     }
 
-    override fun onBind(intent: Intent?): IBinder? {
-        val mediaSessionBinder = super.onBind(intent)
-        val boundBinder = mediaSessionBinder ?: binder
-        Timber.tag(TASK_CLEAR_DEBUG_TAG).d(
-            "MusicService.onBind: action=${intent?.action}, " +
-                "mediaSessionBinderPresent=${mediaSessionBinder != null}"
-        )
-        return boundBinder
-    }
-
-    override fun onUnbind(intent: Intent?): Boolean {
-        Timber.tag(TASK_CLEAR_DEBUG_TAG).d("MusicService.onUnbind: action=${intent?.action}")
-        return super.onUnbind(intent)
-    }
+    override fun onBind(intent: Intent?) = super.onBind(intent) ?: binder
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        Timber.tag(TASK_CLEAR_DEBUG_TAG).d("MusicService.onTaskRemoved: rootIntent=$rootIntent")
+        if (dataStore.get(StopMusicOnTaskClearKey, false)) {
+            player.pause()
+        }
         super.onTaskRemoved(rootIntent)
     }
 
@@ -4145,7 +4132,6 @@ class MusicService :
     }
 
     companion object {
-        private const val TASK_CLEAR_DEBUG_TAG = "VIVI_TASK_CLEAR_DEBUG"
         const val ROOT = "root"
         const val SONG = "song"
         const val ARTIST = "artist"
