@@ -309,11 +309,14 @@ class MainActivity : ComponentActivity() {
         // On Android 12+, we can't start foreground services from background
         // Use BIND_AUTO_CREATE which will create the service if needed
         // The service will call startForeground() in onCreate() when bound
-        serviceBound = bindService(
+        val bound = bindService(
             Intent(this, MusicService::class.java),
             serviceConnection,
             BIND_AUTO_CREATE
         )
+        if (bound) {
+            serviceBound = true
+        }
     }
 
     override fun onStop() {
