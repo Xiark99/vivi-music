@@ -126,6 +126,11 @@ buildTypes {
         )
         buildConfigField("String", "ARCHITECTURE", "\"release\"")
     }
+    create("customRelease") {
+        initWith(getByName("release"))
+        applicationIdSuffix = ".custom"
+        matchingFallbacks += listOf("release")
+    }
     debug {
         applicationIdSuffix = ".debug"
         isDebuggable = true
