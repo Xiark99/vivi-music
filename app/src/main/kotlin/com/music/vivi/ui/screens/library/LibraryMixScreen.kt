@@ -372,29 +372,88 @@ fun LibraryMixScreen(
                     if (showLiked && activeFilter == LibraryFilterType.ALL) {
                         item(
                             key = "likedPlaylist",
-                            contentType = { CONTENT_TYPE_PLAYLIST },
+                            span = { GridItemSpan(maxLineSpan) },
+                            contentType = "stat_card",
                         ) {
-                            if (isGridView.value) {
-                                PlaylistGridItem(
-                                    playlist = likedPlaylist,
-                                    fillMaxWidth = true,
-                                    autoPlaylist = true,
+                            Box(
+                                modifier = Modifier
+                                    .padding(
+                                        horizontal = if (isGridView.value) 12.dp else 16.dp,
+                                        vertical = if (isGridView.value) 12.dp else 2.dp,
+                                    )
+                                    .fillMaxWidth()
+                                    .height(80.dp)
+                                    .clip(
+                                        if (isGridView.value) RoundedCornerShape(12.dp)
+                                        else getShapeForIndex(visibleStaticItems.indexOf("liked")),
+                                    )
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                    .clickable(onClick = { navController.navigate("auto_playlist/liked") }),
+                            ) {
+                                Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .combinedClickable(
-                                            onClick = { navController.navigate("auto_playlist/liked") },
-                                        ).animateItem(),
-                                )
-                            } else {
-                                PlaylistListItem(
-                                    playlist = likedPlaylist,
-                                    shape = getShapeForIndex(visibleStaticItems.indexOf("liked")),
-                                    autoPlaylist = true,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable { navController.navigate("auto_playlist/liked") }
-                                        .animateItem(),
-                                )
+                                        .height(80.dp)
+                                        .padding(horizontal = 16.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(48.dp)
+                                                .clip(MaterialShapes.Cookie4Sided.toShape())
+                                                .background(MaterialTheme.colorScheme.primary),
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            Icon(
+                                                painter = painterResource(R.drawable.favorite_border),
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onPrimary,
+                                                modifier = Modifier.size(24.dp),
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.size(16.dp))
+                                        androidx.compose.foundation.layout.Column {
+                                            androidx.compose.material3.Text(
+                                                text = stringResource(R.string.liked),
+                                                style = MaterialTheme.typography.titleMedium.copy(
+                                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                                ),
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                            )
+                                        }
+                                    }
+
+                                    if (recentLikedThumbnails.isNotEmpty()) {
+                                        val displayThumbnails = recentLikedThumbnails.take(5)
+                                        var currentIndex by remember { mutableIntStateOf(0) }
+
+                                        if (displayThumbnails.size > 1) {
+                                            LaunchedEffect(displayThumbnails) {
+                                                while (true) {
+                                                    delay(3000)
+                                                    currentIndex = (currentIndex + 1) % displayThumbnails.size
+                                                }
+                                            }
+                                        }
+
+                                        Crossfade(
+                                            targetState = currentIndex,
+                                            animationSpec = tween(1000),
+                                            label = "LikedImageCrossfade",
+                                        ) { index ->
+                                            AsyncImage(
+                                                model = displayThumbnails[index],
+                                                contentDescription = null,
+                                                contentScale = ContentScale.Crop,
+                                                modifier = Modifier
+                                                    .size(width = 160.dp, height = 64.dp)
+                                                    .clip(RoundedCornerShape(8.dp)),
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
