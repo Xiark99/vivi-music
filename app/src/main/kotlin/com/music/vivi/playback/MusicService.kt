@@ -390,6 +390,7 @@ class MusicService :
     private var crossfadeJob: Job? = null
 
     private lateinit var mediaSession: MediaLibrarySession
+    private var mediaSessionReleased = false
 
     // Tracks if player has been properly initilized
     private val playerInitialized = MutableStateFlow(false)
@@ -3528,7 +3529,7 @@ class MusicService :
         connectivityObserver.unregister()
         abandonAudioFocus()
         releaseLoudnessEnhancer()
-        mediaSession.release()
+        releaseMediaSession()
         player.removeListener(this)
         player.removeListener(sleepTimer)
         playerSilenceProcessors.remove(player)
@@ -3544,9 +3545,18 @@ class MusicService :
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         if (dataStore.get(StopMusicOnTaskClearKey, false)) {
+            player.pause()
+            releaseMediaSession()
             pauseAllPlayersAndStopSelf()
         } else {
             super.onTaskRemoved(rootIntent)
+        }
+    }
+
+    private fun releaseMediaSession() {
+        if (!mediaSessionReleased) {
+            mediaSession.release()
+            mediaSessionReleased = true
         }
     }
 
