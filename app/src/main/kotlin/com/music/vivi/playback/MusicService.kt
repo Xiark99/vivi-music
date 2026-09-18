@@ -3544,9 +3544,10 @@ class MusicService :
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         if (dataStore.get(StopMusicOnTaskClearKey, false)) {
-            player.pause()
+            pauseAllPlayersAndStopSelf()
+        } else {
+            super.onTaskRemoved(rootIntent)
         }
-        super.onTaskRemoved(rootIntent)
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo) = mediaSession
