@@ -397,7 +397,16 @@ object YTPlayerUtils {
         playlistId: String? = null,
     ): Result<PlayerResponse> {
         Timber.tag(logTag).d("Fetching metadata-only player response for videoId: $videoId")
-        return YouTube.player(videoId, playlistId, client = WEB_REMIX) // ANDROID_VR does not work with history
+        // This is intentionally limited to the metadata WEB_REMIX request. Stream extraction keeps
+        // using InnerTubeX unchanged, and a null STS preserves the previous request shape.
+        val signatureTimestamp = runCatching { CipherDeobfuscator.signatureTimestamp() }.getOrNull()
+        return YouTube.player(
+            videoId = videoId,
+            playlistId = playlistId,
+            client = WEB_REMIX,
+            signatureTimestamp = signatureTimestamp,
+            poToken = null,
+        ) // ANDROID_VR does not work with history
             .onSuccess { Timber.tag(logTag).d("Successfully fetched metadata") }
             .onFailure { Timber.tag(logTag).e(it, "Failed to fetch metadata") }
     }
