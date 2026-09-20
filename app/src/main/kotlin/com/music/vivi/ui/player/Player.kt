@@ -83,7 +83,6 @@ import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.runtime.produceState
 import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -92,7 +91,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -144,6 +142,7 @@ import androidx.core.view.WindowCompat
 import androidx.media3.common.C
 import androidx.media3.common.Player
 import androidx.media3.common.Player.STATE_ENDED
+import androidx.media3.common.Tracks
 import androidx.media3.exoplayer.offline.Download
 import androidx.media3.exoplayer.offline.DownloadRequest
 import androidx.media3.exoplayer.offline.DownloadService
@@ -159,8 +158,6 @@ import com.music.vivi.LocalDownloadUtil
 import com.music.vivi.LocalListenTogetherManager
 import com.music.vivi.LocalPlayerConnection
 import com.music.vivi.R
-import com.music.vivi.constants.AudioQuality
-import com.music.vivi.constants.AudioQualityKey
 import com.music.vivi.constants.CropAlbumArtKey
 import com.music.vivi.constants.DarkModeKey
 import com.music.vivi.constants.HidePlayerThumbnailKey
@@ -220,7 +217,6 @@ import com.ermohdamaan.justforpixel.justforpixelexpressivelab.core.components.sl
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.max
-import kotlin.math.roundToInt
 import com.music.vivi.ui.component.Icon as MIcon
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.exoplayer.DefaultLoadControl
@@ -248,6 +244,29 @@ import com.music.vivi.ui.player.CanvasArtworkPlaybackCache
 import com.music.vivi.utils.isWifiConnected
 import com.music.vivi.vivimusiccanvas.ViviMusicCanvasProvider
 import java.util.Locale
+
+private fun selectedAudioCodecLabel(tracks: Tracks): String? {
+    tracks.groups
+        .filter { it.type == C.TRACK_TYPE_AUDIO }
+        .forEach { group ->
+            for (index in 0 until group.length) {
+                if (!group.isTrackSelected(index)) continue
+
+                val format = group.getTrackFormat(index)
+                val sampleMimeType = format.sampleMimeType.orEmpty()
+                val codecs = format.codecs.orEmpty()
+                when {
+                    sampleMimeType.equals("audio/opus", ignoreCase = true) ||
+                        codecs.contains("opus", ignoreCase = true) -> return "OPUS"
+                    sampleMimeType.startsWith("audio/mp4", ignoreCase = true) ||
+                        sampleMimeType.contains("aac", ignoreCase = true) ||
+                        codecs.contains("mp4a", ignoreCase = true) -> return "AAC"
+                }
+            }
+        }
+    return null
+}
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun BottomSheetPlayer(
@@ -355,10 +374,6 @@ fun BottomSheetPlayer(
     val isMuted by playerConnection.isMuted.collectAsState()
     val playerVolume by playerConnection.service.playerVolume.collectAsState()
 
-    val (audioQuality) = rememberEnumPreference(
-        AudioQualityKey,
-        defaultValue = AudioQuality.AUTO
-    )
     val sliderStyle by rememberEnumPreference(SliderStyleKey, SliderStyle.SLIM)
     val squigglySlider by rememberPreference(SquigglySliderKey, defaultValue = false)
     
@@ -379,7 +394,6 @@ fun BottomSheetPlayer(
     val castPosition by castHandler?.castPosition?.collectAsState() ?: remember { mutableLongStateOf(0L) }
     val castDuration by castHandler?.castDuration?.collectAsState() ?: remember { mutableLongStateOf(0L) }
     val castIsPlaying by castHandler?.castIsPlaying?.collectAsState() ?: remember { mutableStateOf(false) }
-    val castVolume by castHandler?.castVolume?.collectAsState() ?: remember { mutableFloatStateOf(1f) }
     
     // Use Cast state when casting, otherwise local player
     val effectiveIsPlaying = if (isCasting) castIsPlaying else isPlaying
@@ -459,22 +473,6 @@ fun BottomSheetPlayer(
         }
     }
 
-    val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
-    val maxSystemVolume = remember { audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC).toFloat() }
-    val systemVolume by produceState(initialValue = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / maxSystemVolume) {
-        val receiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context, intent: Intent) {
-                if (intent.action == "android.media.VOLUME_CHANGED_ACTION") {
-                    value = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / maxSystemVolume
-                }
-            }
-        }
-        val filter = IntentFilter("android.media.VOLUME_CHANGED_ACTION")
-        context.registerReceiver(receiver, filter)
-        awaitDispose {
-            context.unregisterReceiver(receiver)
-        }
-    }
 
     val defaultGradientColors = listOf(MaterialTheme.colorScheme.surface, MaterialTheme.colorScheme.surfaceVariant)
     val fallbackColor = MaterialTheme.colorScheme.surface.toArgb()
@@ -1326,6 +1324,29 @@ fun BottomSheetPlayer(
         if (usePlayerV2) {
              PlayerV2(state, navController, modifier)
         } else {
+            val media3Player = playerConnection.player
+            var selectedAudioCodec by remember(media3Player) { mutableStateOf<String?>(null) }
+
+            DisposableEffect(media3Player) {
+                fun updateSelectedAudioCodec() {
+                    selectedAudioCodec = selectedAudioCodecLabel(media3Player.currentTracks)
+                }
+
+                val listener = object : Player.Listener {
+                    override fun onTracksChanged(tracks: Tracks) {
+                        selectedAudioCodec = selectedAudioCodecLabel(tracks)
+                    }
+
+                    override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                        selectedAudioCodec = null
+                    }
+                }
+
+                updateSelectedAudioCodec()
+                media3Player.addListener(listener)
+                onDispose { media3Player.removeListener(listener) }
+            }
+
             val controlsContent: @Composable ColumnScope.(MediaMetadata) -> Unit = { mediaMetadata ->
             val playPauseRoundness by animateDpAsState(
                 targetValue = if (isPlaying) 24.dp else 36.dp,
@@ -2075,49 +2096,16 @@ fun BottomSheetPlayer(
                             } else {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(3.dp)
                                 ) {
-                                    val infiniteTransition = rememberInfiniteTransition(label = "QualityIconTransition")
-                                    val animatedRotation by infiniteTransition.animateFloat(
-                                        initialValue = 0f,
-                                        targetValue = 360f,
-                                        animationSpec = infiniteRepeatable(
-                                            animation = tween(2000, easing = LinearEasing),
-                                            repeatMode = RepeatMode.Restart
-                                        ),
-                                        label = "QualityIconRotation"
-                                    )
-
-                                    val iconBrush = Brush.sweepGradient(
-                                        colors = listOf(
-                                            Color.Transparent,
-                                            TextBackgroundColor.copy(alpha = 1.0f),
-                                            Color.Transparent
-                                        )
-                                    )
-
                                     Icon(
-                                        painter = painterResource(R.drawable.stream_old_player),
+                                        painter = painterResource(R.drawable.graphic_eq),
                                         contentDescription = null,
-                                        tint = Color.Unspecified,
-                                        modifier = Modifier
-                                            .size(12.dp)
-                                            .graphicsLayer(alpha = 0.99f)
-                                            .drawWithCache {
-                                                onDrawWithContent {
-                                                    drawContent()
-                                                    rotate(animatedRotation) {
-                                                        drawRect(iconBrush, blendMode = BlendMode.SrcIn)
-                                                    }
-                                                }
-                                            }
+                                        tint = TextBackgroundColor.copy(alpha = 0.8f),
+                                        modifier = Modifier.size(11.dp)
                                     )
                                     Text(
-                                        text = when (audioQuality) {
-                                            AudioQuality.AUTO -> stringResource(R.string.audio_quality_auto)
-                                            AudioQuality.HIGH -> stringResource(R.string.audio_quality_high)
-                                            AudioQuality.LOW -> stringResource(R.string.audio_quality_low)
-                                        }.uppercase(),
+                                        text = selectedAudioCodec ?: "—",
                                         style = MaterialTheme.typography.labelSmall.copy(
                                             fontSize = 10.sp,
                                             fontWeight = FontWeight.Bold,
@@ -2417,110 +2405,6 @@ fun BottomSheetPlayer(
 //                                    onClick = playerConnection::toggleLike,
 //                                )
 //                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp)) //space between play and audio
-
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = PlayerHorizontalPadding)
-                        ) {
-                            val volumeInteractionSource = remember { MutableInteractionSource() }
-                            val isVolumeDragged by volumeInteractionSource.collectIsDraggedAsState()
-                            val isVolumePressed by volumeInteractionSource.collectIsPressedAsState()
-                            val isVolumeActive = isVolumeDragged || isVolumePressed
-
-                            // Internal state to track drag value and avoid system feedback lag
-                            var dragVolume by remember { mutableFloatStateOf(systemVolume) }
-                            
-                            // Use a coroutine to update system volume to avoid UI blocking on fast swipes
-                            val scope = rememberCoroutineScope()
-                            
-                            LaunchedEffect(systemVolume) {
-                                if (!isVolumeActive) dragVolume = systemVolume
-                            }
-
-                            // Smoothly animate the volume position when changed via buttons
-                            val animatedSystemVolume by animateFloatAsState(
-                                targetValue = systemVolume,
-                                animationSpec = tween(150, easing = LinearOutSlowInEasing),
-                                label = "animatedSystemVolume"
-                            )
-                            
-                            val volume = if (isCasting) castVolume else {
-                                if (isVolumeActive) dragVolume else animatedSystemVolume
-                            }
-                            
-                            val volumeTrackHeight by animateDpAsState(
-                                targetValue = if (isVolumeActive) 16.dp else 10.dp,
-                                animationSpec = spring(
-                                    dampingRatio = 0.7f, // Slightly more stable damping
-                                    stiffness = 600f // Balanced stiffness for high-speed stability
-                                ),
-                                label = "volumeTrackHeight"
-                            )
-
-                            val volumeIconScale by animateFloatAsState(
-                                targetValue = if (isVolumeActive) 1.15f else 1f,
-                                animationSpec = spring(
-                                    dampingRatio = 0.7f,
-                                    stiffness = 600f
-                                ),
-                                label = "volumeIconScale"
-                            )
-
-                            Icon(
-                                painter = painterResource(R.drawable.volume_mute),
-                                contentDescription = null,
-                                tint = textButtonColor,
-                                modifier = Modifier
-                                    .size(20.dp)
-                                    .graphicsLayer(scaleX = volumeIconScale, scaleY = volumeIconScale)
-                            )
-
-                            Spacer(Modifier.width(12.dp))
-
-                            Slider(
-                                value = volume,
-                                onValueChange = { newVolume ->
-                                    dragVolume = newVolume
-                                    if (isCasting) {
-                                        castHandler?.setVolume(newVolume)
-                                    } else {
-                                        // Non-blocking update to prevent "fast swipe" lag
-                                        scope.launch(Dispatchers.Default) {
-                                            val newStep = (newVolume * maxSystemVolume).roundToInt()
-                                            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newStep, 0)
-                                        }
-                                    }
-                                },
-                                modifier = Modifier.weight(1f),
-                                interactionSource = volumeInteractionSource,
-                                thumb = {},
-                                track = { sliderState ->
-                                    PlayerSliderTrack(
-                                        sliderState = sliderState,
-                                        colors = SliderDefaults.colors(
-                                            activeTrackColor = textButtonColor.copy(alpha = 0.7f),
-                                            inactiveTrackColor = textButtonColor.copy(alpha = 0.15f)
-                                        ),
-                                        trackHeight = volumeTrackHeight
-                                    )
-                                }
-                            )
-
-                            Spacer(Modifier.width(12.dp))
-
-                            Icon(
-                                painter = painterResource(R.drawable.volume_up),
-                                contentDescription = null,
-                                tint = textButtonColor,
-                                modifier = Modifier
-                                    .size(20.dp)
-                                    .graphicsLayer(scaleX = volumeIconScale, scaleY = volumeIconScale)
-                            )
                         }
 
                         val displayBluetoothName = remember(bluetoothDeviceName) {

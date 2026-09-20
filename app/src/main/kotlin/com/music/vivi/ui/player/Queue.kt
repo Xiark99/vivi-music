@@ -489,9 +489,7 @@ fun Queue(
                 }
             } else {
                 // Old design
-                Row(
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 30.dp, vertical = 12.dp)
@@ -502,7 +500,7 @@ fun Queue(
                 ) {
                     TextButton(
                         onClick = { state.expandSoft() },
-                        modifier = Modifier.wrapContentWidth()
+                        modifier = Modifier.align(Alignment.CenterStart)
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -528,7 +526,9 @@ fun Queue(
 
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
-                        modifier = Modifier.width(120.dp)
+                        modifier = Modifier
+                            .width(180.dp)
+                            .align(Alignment.Center)
                     ) {
                         ToggleButton(
                             checked = false,
@@ -566,7 +566,7 @@ fun Queue(
                                     }
                                 }
                             },
-                            shapes = ButtonGroupDefaults.connectedTrailingButtonShapes(),
+                            shapes = ButtonGroupDefaults.connectedMiddleButtonShapes(),
                             modifier = Modifier
                                 .height(56.dp)
                                 .weight(1f),
@@ -597,13 +597,38 @@ fun Queue(
                                 }
                             }
                         }
+
+                        if (showCommentButton) {
+                            ToggleButton(
+                                checked = showCommentSheet,
+                                onCheckedChange = { showCommentSheet = true },
+                                shapes = ButtonGroupDefaults.connectedTrailingButtonShapes(),
+                                modifier = Modifier
+                                    .height(56.dp)
+                                    .weight(1f),
+                                colors = ToggleButtonDefaults.colors(
+                                    containerColor = TextBackgroundColor.copy(alpha = 0.2f),
+                                    contentColor = TextBackgroundColor,
+                                    checkedContainerColor = TextBackgroundColor.copy(alpha = 0.4f),
+                                    checkedContentColor = TextBackgroundColor
+                                )
+                            ) {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.chat_msg),
+                                    contentDescription = stringResource(R.string.comments),
+                                    modifier = Modifier.size(30.dp)
+                                )
+                            }
+                        } else {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
                     }
 
                     TextButton(
                         onClick = {
                             onToggleLyrics()
                         },
-                        modifier = Modifier.wrapContentWidth()
+                        modifier = Modifier.align(Alignment.CenterEnd)
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
