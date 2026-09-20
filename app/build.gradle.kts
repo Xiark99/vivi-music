@@ -131,6 +131,14 @@ buildTypes {
         applicationIdSuffix = ".custom"
         matchingFallbacks += listOf("release")
     }
+    create("customTest") {
+        initWith(getByName("customRelease"))
+        // Keep this separate from the installable Custom release while retaining its release behavior.
+        applicationIdSuffix = ".custom.test"
+        versionNameSuffix = "-custom-test"
+        signingConfig = signingConfigs.getByName("debug")
+        matchingFallbacks += listOf("release")
+    }
     create("videoTestRelease") {
         initWith(getByName("release"))
         // Kept separate from customRelease so a video test APK can be installed alongside it.
@@ -202,9 +210,9 @@ buildTypes {
 }
 
 androidComponents {
-    // Video Test is intentionally FOSS-only; do not create redundant GMS variants.
+    // Test-only variants are intentionally FOSS-only; do not create redundant GMS variants.
     beforeVariants { variantBuilder ->
-        if (variantBuilder.buildType == "videoTestRelease" &&
+        if (variantBuilder.buildType in setOf("videoTestRelease", "customTest") &&
             variantBuilder.productFlavors.any { (_, flavor) -> flavor == "gms" }
         ) {
             variantBuilder.enable = false
