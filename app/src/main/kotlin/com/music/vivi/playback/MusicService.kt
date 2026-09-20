@@ -359,8 +359,6 @@ class MusicService :
     /** One diagnostic aggregate per created merged video source; never used for playback policy. */
     private val videoStreamDiagnostics = java.util.concurrent.ConcurrentHashMap<Long, VideoStreamDiagnostics>()
     private val videoSourceInstanceIds = java.util.concurrent.ConcurrentHashMap<String, Long>()
-    /** Monotonic resolver start time per source instance, used only for safe startup diagnostics. */
-    private val videoRouteResolverStartedAtMs = java.util.concurrent.ConcurrentHashMap<Long, Long>()
     /**
      * A media id alone is insufficient: Media3 may create a future queue item's source before it
      * becomes current. Keep its source URI too, so an AUTO transition cannot mistake an old or
@@ -3927,66 +3925,42 @@ class MusicService :
                     .setTransferListener(videoTransferListener)
                 val routingFactory = DataSource.Factory {
                     MuxedRoutingDataSource(audioDataSource, muxedDataSource, resolve = {
-                        val resolverStartMs = SystemClock.elapsedRealtime()
-                        videoRouteResolverStartedAtMs[instance] = resolverStartMs
                         Timber.tag(TAG).i(
                             "[VideoPlayback][route] mediaId=$mediaId sourceInstance=$instance " +
                                 "routeResolverStart=true",
                         )
-                        // VISIONOS adaptive DASH is the normal route. Resolve it before WEB
-                        // progressive so DASH-capable videos avoid an otherwise unused WEB probe.
-                        val dashStartMs = SystemClock.elapsedRealtime()
-                        val dashResolution = try {
+                        val route = try {
                             runBlocking(Dispatchers.IO) {
-                                InnerTubeXPlayer.resolveDash360(mediaId, mediaItem.metadata?.musicVideoType)
+                                InnerTubeXPlayer.resolveMuxed360(mediaId, mediaItem.metadata?.musicVideoType)
                             }
                         } catch (error: Exception) {
-                            // Keep unknown tracks fail-closed. A confirmed queue type may still
-                            // try the existing progressive fallback below.
-                            Timber.tag(TAG).w("[VideoPlayback][dash] mediaId=$mediaId unavailable errorType=${error.javaClass.simpleName}")
-                            InnerTubeXPlayer.DashResolution(mediaItem.metadata?.musicVideoType, null)
+                            // Do not expose signed URLs or request headers in resolver diagnostics.
+                            Timber.tag(TAG).w("[VideoPlayback][route] mediaId=$mediaId muxed unavailable errorType=${error.javaClass.simpleName}")
+                            null
                         }
-                        val dashEndMs = SystemClock.elapsedRealtime()
-                        dashResolution.musicVideoType?.let { resolvedMusicVideoTypes[mediaId] = it }
-                        val dashRoute = dashResolution.route
-                        Timber.tag(TAG).i(
-                            "[VideoPlayback][timing] mediaId=$mediaId sourceInstance=$instance " +
-                                "resolverStartMs=$resolverStartMs dashStartMs=$dashStartMs dashEndMs=$dashEndMs " +
-                                "dashDurationMs=${dashEndMs - dashStartMs} dashRoute=${dashRoute != null}",
-                        )
-
-                        // Only a VISIONOS-confirmed OMV/UGC with no usable DASH route reaches
-                        // WEB. ATV and unknown classifications keep the original Opus route.
-                        val muxedRoute = if (dashRoute == null &&
-                            dashResolution.musicVideoType in ACTUAL_MUSIC_VIDEO_TYPES &&
+                        route?.musicVideoType?.let { resolvedMusicVideoTypes[mediaId] = it }
+                        val stream = route?.stream
+                        val dashRoute = if (stream == null && route?.musicVideoType in ACTUAL_MUSIC_VIDEO_TYPES &&
                             shouldAttemptVideoFor(mediaItem)
                         ) {
-                            val muxedStartMs = SystemClock.elapsedRealtime()
                             try {
                                 runBlocking(Dispatchers.IO) {
-                                    InnerTubeXPlayer.resolveMuxed360(mediaId, dashResolution.musicVideoType)
+                                    InnerTubeXPlayer.resolveDash360(mediaId, route?.musicVideoType)
                                 }
                             } catch (error: Exception) {
+                                // Raw response parsing and cipher resolution must fail closed to the
+                                // original audio path; keep sensitive stream details out of logs.
                                 Timber.tag(TAG).w(
-                                    "[VideoPlayback][route] mediaId=$mediaId muxed unavailable " +
+                                    "[VideoPlayback][dash] mediaId=$mediaId unavailable " +
                                         "errorType=${error.javaClass.simpleName}",
                                 )
                                 null
-                            }.also { route ->
-                                val muxedEndMs = SystemClock.elapsedRealtime()
-                                Timber.tag(TAG).i(
-                                    "[VideoPlayback][timing] mediaId=$mediaId sourceInstance=$instance " +
-                                        "muxedStartMs=$muxedStartMs muxedEndMs=$muxedEndMs " +
-                                        "muxedDurationMs=${muxedEndMs - muxedStartMs} " +
-                                        "muxedRoute=${route?.stream != null}",
-                                )
                             }
                         } else {
                             null
                         }
-                        muxedRoute?.musicVideoType?.let { resolvedMusicVideoTypes[mediaId] = it }
-                        val stream = muxedRoute?.stream
-                        if (dashRoute != null && shouldAttemptVideoFor(mediaItem)) {
+                        dashRoute?.musicVideoType?.let { resolvedMusicVideoTypes[mediaId] = it }
+                        if (stream == null && dashRoute != null && shouldAttemptVideoFor(mediaItem)) {
                             dashRoutes[instance] = dashRoute
                             scope.launch {
                                 installSideloadedDashRoute(mediaItem, instance, dashRoute)
@@ -3996,7 +3970,6 @@ class MusicService :
                             // existing audio resolver/cache/Opus selection for the fallback path.
                             null
                         } else if (stream == null || !shouldAttemptVideoFor(mediaItem)) {
-                            videoRouteResolverStartedAtMs.remove(instance)
                             null // Original audio resolver/cache/quality selection, never muxed AAC.
                         } else {
                             isMuxed.set(true)
@@ -4012,16 +3985,10 @@ class MusicService :
                                 itag = stream.itag
                             }
                             Timber.tag(TAG).i(
-                                "[VideoPlayback][route] mediaId=$mediaId musicVideoType=${muxedRoute?.musicVideoType} " +
+                                "[VideoPlayback][route] mediaId=$mediaId musicVideoType=${route.musicVideoType} " +
                                     "route=SINGLE_MUXED_VIDEO itag=${stream.itag} mime=${stream.mimeType} " +
                                     "codecs=${stream.codecs} audioCodec=${stream.codecs?.split(',')?.firstOrNull { it.trim().startsWith("mp4a") }?.trim()} " +
                                     "width=${stream.width} height=${stream.height} bitrate=${stream.bitrate}",
-                            )
-                            val sourceInstallMs = SystemClock.elapsedRealtime()
-                            Timber.tag(TAG).i(
-                                "[VideoPlayback][timing] mediaId=$mediaId sourceInstance=$instance " +
-                                    "sourceInstallMs=$sourceInstallMs " +
-                                    "totalToSourceInstallMs=${sourceInstallMs - resolverStartMs}",
                             )
                             scope.launch {
                                 val current = player.currentMediaItem
@@ -4111,12 +4078,6 @@ class MusicService :
         val position = safeCurrentPlaybackPosition()
         val shouldResume = player.playWhenReady
         cancelVideoStallWatchdog("installing single DASH source")
-        val sourceInstallMs = SystemClock.elapsedRealtime()
-        val resolverStartMs = videoRouteResolverStartedAtMs[sourceInstanceId] ?: sourceInstallMs
-        Timber.tag(TAG).i(
-            "[VideoPlayback][timing] mediaId=$mediaId sourceInstance=$sourceInstanceId " +
-                "sourceInstallMs=$sourceInstallMs totalToSourceInstallMs=${sourceInstallMs - resolverStartMs}",
-        )
         val dashItem = originalItem.buildUpon()
             .setUri("$SIDELOADED_DASH_SCHEME:$sourceInstanceId")
             // Retain the existing audio cache key if this route has to fail closed to audio-only.
@@ -4474,14 +4435,6 @@ class MusicService :
         val mediaId = player.currentMediaItem?.mediaId ?: return
         if (videoPlaybackRequestedMediaId.value == mediaId) {
             videoPlaybackActiveMediaId.value = mediaId
-            videoSourceInstanceIds[mediaId]?.let { sourceInstanceId ->
-                val firstFrameMs = SystemClock.elapsedRealtime()
-                val resolverStartMs = videoRouteResolverStartedAtMs[sourceInstanceId] ?: firstFrameMs
-                Timber.tag(TAG).i(
-                    "[VideoPlayback][timing] mediaId=$mediaId sourceInstance=$sourceInstanceId " +
-                        "firstFrameMs=$firstFrameMs totalToFirstFrameMs=${firstFrameMs - resolverStartMs}",
-                )
-            }
             logVideoPlaybackTimeline("firstFrame")
         }
     }
@@ -4532,10 +4485,7 @@ class MusicService :
             videoSourceMediaIds.remove(mediaId)
             videoSourceUris.remove(mediaId)
             videoPlaybackRoutes.remove(mediaId)
-            videoSourceInstanceIds.remove(mediaId)?.let { sourceInstanceId ->
-                dashRoutes.remove(sourceInstanceId)
-                videoRouteResolverStartedAtMs.remove(sourceInstanceId)
-            }
+            videoSourceInstanceIds.remove(mediaId)?.let(dashRoutes::remove)
             videoPlaybackRequestedMediaId.value = null
             videoPlaybackActiveMediaId.value = null
             // ProgressiveMediaSource can update an equal MediaItem in-place, which would leave the
@@ -5370,7 +5320,6 @@ class MusicService :
         dashRoutes.clear()
         videoSourceUris.clear()
         videoPlaybackRoutes.clear()
-        videoRouteResolverStartedAtMs.clear()
         pendingCurrentVideoRouteActivation = null
 
         try {
