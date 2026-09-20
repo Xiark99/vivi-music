@@ -839,7 +839,6 @@ fun BottomSheetPlayer(
     }
 
     val backgroundAlpha = state.progress.coerceIn(0f, 1f)
-
     BottomSheet(
         state = state,
         modifier = modifier,
@@ -1132,24 +1131,24 @@ fun BottomSheetPlayer(
                                                 )
                                             }
                                     ) {
-                                        AsyncImage(
-                                            model = ImageRequest.Builder(context)
-                                                .data(thumbnailUrl)
-                                                .size(CoilSize.ORIGINAL)
-                                                .build(),
-                                            contentDescription = null,
-                                            contentScale = ContentScale.Crop,
-                                            modifier = Modifier.fillMaxSize()
-                                        )
-
-                                        if (enableCanvas && canvasArtwork != null && backgroundAlpha > 0.01f) {
-                                            BackgroundVideoView(
-                                                videoUrl = canvasArtwork?.animatedTall ?: canvasArtwork?.animated ?: canvasArtwork?.videoUrl ?: "",
-                                                isPlaying = isPlaying,
-                                                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
+                                            AsyncImage(
+                                                model = ImageRequest.Builder(context)
+                                                    .data(thumbnailUrl)
+                                                    .size(CoilSize.ORIGINAL)
+                                                    .build(),
+                                                contentDescription = null,
+                                                contentScale = ContentScale.Crop,
                                                 modifier = Modifier.fillMaxSize()
                                             )
-                                        }
+
+                                            if (enableCanvas && canvasArtwork != null && backgroundAlpha > 0.01f) {
+                                                BackgroundVideoView(
+                                                    videoUrl = canvasArtwork?.animatedTall ?: canvasArtwork?.animated ?: canvasArtwork?.videoUrl ?: "",
+                                                    isPlaying = isPlaying,
+                                                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
+                                                    modifier = Modifier.fillMaxSize()
+                                                )
+                                            }
                                     }
                                     
                                     // Layer 3: Dynamic overlay for depth

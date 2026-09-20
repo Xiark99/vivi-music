@@ -158,6 +158,9 @@ class PlayerConnection(
 
     val error = MutableStateFlow<PlaybackException?>(null)
     val isMuted = service.isMuted
+    /** State from the primary MusicService ExoPlayer; no UI-owned player is used for video. */
+    val videoPlaybackRequestedMediaId = service.videoPlaybackRequestedMediaId
+    val videoPlaybackActiveMediaId = service.videoPlaybackActiveMediaId
 
     val waitingForNetworkConnection = service.waitingForNetworkConnection
     

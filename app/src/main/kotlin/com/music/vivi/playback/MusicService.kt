@@ -26,16 +26,20 @@ import android.media.audiofx.LoudnessEnhancer
 import android.net.ConnectivityManager
 import android.os.Binder
 import android.os.Build
+import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import androidx.core.content.getSystemService
 import androidx.core.net.toUri
 import androidx.datastore.preferences.core.edit
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.Format
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
+import androidx.media3.common.Tracks
 import androidx.media3.common.Player.EVENT_POSITION_DISCONTINUITY
 import androidx.media3.common.Player.EVENT_TIMELINE_CHANGED
 import androidx.media3.common.Player.REPEAT_MODE_ALL
@@ -46,22 +50,40 @@ import androidx.media3.common.Timeline
 import androidx.media3.common.audio.SonicAudioProcessor
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.HttpDataSource
 import androidx.media3.datasource.ResolvingDataSource
+import androidx.media3.datasource.TransferListener
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR
 import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.ExoPlaybackException
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.analytics.PlaybackStats
 import androidx.media3.exoplayer.analytics.PlaybackStatsListener
 import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.exoplayer.audio.SilenceSkippingAudioProcessor
+import androidx.media3.exoplayer.drm.DrmSessionManagerProvider
+import androidx.media3.exoplayer.dash.DashMediaSource
+import androidx.media3.exoplayer.dash.manifest.AdaptationSet
+import androidx.media3.exoplayer.dash.manifest.BaseUrl
+import androidx.media3.exoplayer.dash.manifest.DashManifest
+import androidx.media3.exoplayer.dash.manifest.Period
+import androidx.media3.exoplayer.dash.manifest.RangedUri
+import androidx.media3.exoplayer.dash.manifest.Representation
+import androidx.media3.exoplayer.dash.manifest.SegmentBase
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.exoplayer.source.LoadEventInfo
+import androidx.media3.exoplayer.source.MediaSource
+import androidx.media3.exoplayer.source.MediaLoadData
+import androidx.media3.exoplayer.source.MediaSourceEventListener
+import androidx.media3.exoplayer.source.MergingMediaSource
 import androidx.media3.exoplayer.source.ShuffleOrder.DefaultShuffleOrder
+import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
 import androidx.media3.extractor.ExtractorsFactory
 import androidx.media3.extractor.mkv.MatroskaExtractor
 import androidx.media3.extractor.mp4.FragmentedMp4Extractor
@@ -76,6 +98,7 @@ import com.google.common.util.concurrent.MoreExecutors
 import com.music.innertube.YouTube
 import com.music.innertube.models.SongItem
 import com.music.innertube.models.WatchEndpoint
+import com.music.innertube.models.WatchEndpoint.WatchEndpointMusicSupportedConfigs.WatchEndpointMusicConfig.Companion.MUSIC_VIDEO_TYPE_ATV
 import com.music.innertube.pages.RadioChip
 import com.music.lastfm.LastFM
 import com.music.vivi.MainActivity
@@ -108,6 +131,7 @@ import com.music.vivi.constants.DiscordTokenKey
 import com.music.vivi.constants.DiscordUseDetailsKey
 import com.music.vivi.constants.EnableDiscordRPCKey
 import com.music.vivi.constants.EnableLastFMScrobblingKey
+import com.music.vivi.constants.EnableSaavnStreamingKey
 import com.music.vivi.constants.HideExplicitKey
 import com.music.vivi.constants.HideVideoSongsKey
 import com.music.vivi.constants.HistoryDuration
@@ -121,6 +145,8 @@ import com.music.vivi.constants.PauseOnMute
 import com.music.vivi.constants.PersistentQueueKey
 import com.music.vivi.constants.PersistentShuffleAcrossQueuesKey
 import com.music.vivi.constants.PlayerVolumeKey
+import com.music.vivi.constants.PlayerBackgroundStyle
+import com.music.vivi.constants.PlayerBackgroundStyleKey
 import com.music.vivi.constants.RememberShuffleAndRepeatKey
 import com.music.vivi.constants.RepeatModeKey
 import com.music.vivi.constants.ResumeOnBluetoothConnectKey
@@ -131,6 +157,8 @@ import com.music.vivi.constants.ShowLyricsKey
 import com.music.vivi.constants.ShuffleModeKey
 import com.music.vivi.constants.ShufflePlaylistFirstKey
 import com.music.vivi.constants.StopMusicOnTaskClearKey
+import com.music.vivi.constants.UsePlayerV2Key
+import com.music.vivi.constants.VideoPlaybackKey
 import com.music.vivi.constants.PreventDuplicateTracksInQueueKey
 import com.music.vivi.constants.SimilarContent
 import com.music.vivi.constants.SkipSilenceInstantKey
@@ -226,6 +254,7 @@ import okhttp3.OkHttpClient
 import timber.log.Timber
 import java.io.ObjectInputStream
 import java.io.ObjectOutputStream
+import java.io.IOException
 import java.time.LocalDateTime
 import javax.inject.Inject
 import kotlin.coroutines.coroutineContext
@@ -233,6 +262,26 @@ import kotlin.time.Duration.Companion.seconds
 
 private const val INSTANT_SILENCE_SKIP_STEP_MS = 15_000L
 private const val INSTANT_SILENCE_SKIP_SETTLE_MS = 350L
+/**
+ * Five seconds leaves normal seeks and short CDN rebuffering alone, while recovering the
+ * reproducible merged-source stalls where both playback and buffering stop advancing.
+ */
+private const val VIDEO_STALL_TIMEOUT_MS = 5_000L
+private const val VIDEO_STALL_PROGRESS_THRESHOLD_MS = 250L
+/** Avoid giving startup stalls a second five-second window for a tiny video buffer increase. */
+private const val VIDEO_STARTUP_MIN_BUFFER_MS = 500L
+private const val VIDEO_AUTO_RETRY_MIN_OBSERVATION_MS = 2_000L
+private const val VIDEO_AUTO_RETRY_MAX_STARTUP_POSITION_MS = 250L
+private const val VIDEO_AUTO_RETRY_REQUIRED_RATE_FRACTION = 0.5
+private const val SIDELOADED_DASH_SCHEME = "vivi-dash"
+private val ACTUAL_MUSIC_VIDEO_TYPES = setOf("MUSIC_VIDEO_TYPE_OMV", "MUSIC_VIDEO_TYPE_UGC")
+
+private data class VideoPlaybackSettings(
+    val enabled: Boolean,
+    val usePlayerV2: Boolean,
+    val useSaavn: Boolean,
+    val backgroundStyle: PlayerBackgroundStyle,
+)
 
 @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
 @androidx.annotation.OptIn(UnstableApi::class)
@@ -282,6 +331,216 @@ class MusicService :
     private var crossfadeManualSkipEnabled = false
     private var crossfadeCurve = CrossfadeCurve.EASE_OUT_QUAD
     private var crossfadeTriggerJob: Job? = null
+
+    /** UI-visible state for the merged, primary-player video renderer. */
+    val videoPlaybackRequestedMediaId = MutableStateFlow<String?>(null)
+    val videoPlaybackActiveMediaId = MutableStateFlow<String?>(null)
+    @Volatile private var videoPlaybackEnabled = false
+    @Volatile private var playerV2Enabled = false
+    @Volatile private var jioSaavnStreamingEnabled = false
+    @Volatile private var playerBackgroundStyle = PlayerBackgroundStyle.DEFAULT
+    private val videoFallbackMediaIds = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+    private val resolvedMusicVideoTypes = java.util.concurrent.ConcurrentHashMap<String, String>()
+    /** Tracks primary-player video sources, never the normal audio-only source. */
+    private val videoSourceMediaIds = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+    /** Keeps muxed and single-DASH paths distinct so merge-only policies never affect DASH. */
+    private val videoPlaybackRoutes = java.util.concurrent.ConcurrentHashMap<String, VideoPlaybackRoute>()
+    /** Sideloaded manifests are memory-only and are addressed through an opaque source instance. */
+    private val dashRoutes = java.util.concurrent.ConcurrentHashMap<Long, InnerTubeXPlayer.DashRoute>()
+    /** A video child that has actually begun a load for this service session. */
+    private val videoLoadStartedMediaIds = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+    /** Guards the narrow window while the primary item is being recreated as audio-only. */
+    private var isRebuildingCurrentAsAudioOnly = false
+    /** Written exclusively by the video resolver or video child MediaSource listener. */
+    private val videoLoadFailures = java.util.concurrent.ConcurrentHashMap<String, Throwable>()
+    /** Only observes the primary player's currently active merged source. */
+    private var videoStallWatchdogJob: Job? = null
+    private val videoTransferDiagnostics = java.util.concurrent.ConcurrentHashMap<DataSource, VideoTransferDiagnostics>()
+    /** One diagnostic aggregate per created merged video source; never used for playback policy. */
+    private val videoStreamDiagnostics = java.util.concurrent.ConcurrentHashMap<Long, VideoStreamDiagnostics>()
+    private val videoSourceInstanceIds = java.util.concurrent.ConcurrentHashMap<String, Long>()
+    /**
+     * A media id alone is insufficient: Media3 may create a future queue item's source before it
+     * becomes current. Keep its source URI too, so an AUTO transition cannot mistake an old or
+     * pre-created audio source for the current item's video route.
+     */
+    private val videoSourceUris = java.util.concurrent.ConcurrentHashMap<String, String>()
+    private val playbackSourceInstanceSequence = java.util.concurrent.atomic.AtomicLong()
+    private val videoRequestSequence = java.util.concurrent.atomic.AtomicLong()
+    private val videoRouteReplacementSequence = java.util.concurrent.atomic.AtomicLong()
+    /** Guards one forced current-item route resolution; it is cleared after a real route is made. */
+    private var pendingCurrentVideoRouteActivation: CurrentVideoRouteActivation? = null
+    /** A single startup retry is permitted for one merged source, never for audio-only playback. */
+    private var videoAutoRetryMediaId: String? = null
+    /** The queue index makes a hard source replacement distinct from an actual queue transition. */
+    private var videoAutoRetryMediaItemIndex: Int? = null
+    private var videoAutoRetrySourceInstanceId: Long? = null
+    private var videoAutoRetryReason: String? = null
+    private var videoAutoRetryResumePositionMs: Long = 0L
+    private var videoAutoRetryStartedAtMs: Long? = null
+    private var videoAutoRetrySucceeded = false
+    private var audioOnlyFallbackMediaId: String? = null
+    private var audioOnlyFallbackStartedAtMs: Long? = null
+
+    private enum class VideoPlaybackRoute {
+        MUXED,
+        DASH,
+    }
+
+    private data class CurrentVideoRouteActivation(
+        val mediaId: String,
+        val mediaItemIndex: Int,
+        val sourceUri: String?,
+    )
+
+    private data class VideoStreamRequest(
+        val sourceInstanceId: Long?,
+        val mediaId: String,
+    )
+
+    private data class VideoTransferDiagnostics(
+        val sourceInstanceId: Long?,
+        val mediaId: String,
+        val requestSequence: Long,
+        val position: Long,
+        val length: Long,
+        val uriScheme: String,
+        val initializedAtMs: Long,
+        var startedAtMs: Long = initializedAtMs,
+        var totalBytes: Long = 0L,
+        var firstByteLogged: Boolean = false,
+        var lastProgressAtMs: Long = initializedAtMs,
+    )
+
+    private data class VideoStreamDiagnostics(
+        val sourceInstanceId: Long,
+        val mediaId: String,
+        var openCount: Int = 0,
+        var totalBytes: Long = 0L,
+        var firstByteAtMs: Long? = null,
+        var lastByteAtMs: Long? = null,
+        var bitrate: Int? = null,
+        var contentLength: Long? = null,
+        var mimeType: String? = null,
+        var codecs: String? = null,
+        var itag: Int? = null,
+    )
+
+    /**
+     * The video data source is uncached, so its custom cache key is only a resolver identifier.
+     * New sources use video:<source instance>:<media id>; accepting the old form keeps this parser
+     * harmless for an already-created source while the process is being replaced during an update.
+     */
+    private fun videoStreamRequest(dataSpec: DataSpec): VideoStreamRequest? {
+        val key = dataSpec.key?.removePrefix("video:") ?: return null
+        if (key == dataSpec.key || key.isBlank()) return null
+        val separator = key.indexOf(':')
+        if (separator <= 0 || separator == key.lastIndex) return VideoStreamRequest(null, key)
+        return VideoStreamRequest(key.substring(0, separator).toLongOrNull(), key.substring(separator + 1))
+    }
+
+    private fun videoDiagnosticsFor(request: VideoStreamRequest): VideoStreamDiagnostics? =
+        request.sourceInstanceId?.let { sourceInstanceId ->
+            videoStreamDiagnostics.computeIfAbsent(sourceInstanceId) {
+                VideoStreamDiagnostics(sourceInstanceId, request.mediaId)
+            }
+        }
+
+    private fun sourceInstanceLabel(sourceInstanceId: Long?): String =
+        sourceInstanceId?.toString() ?: "legacy"
+
+    /** Keeps MediaSource event logs comparable without emitting the resolved CDN URI or headers. */
+    private fun loadEventDiagnostics(loadEventInfo: LoadEventInfo, mediaLoadData: MediaLoadData): String =
+        "bytesLoaded=${loadEventInfo.bytesLoaded} mediaStartTimeMs=${mediaLoadData.mediaStartTimeMs} " +
+            "mediaEndTimeMs=${mediaLoadData.mediaEndTimeMs} dataSpecPosition=${loadEventInfo.dataSpec.position} " +
+            "dataSpecLength=${loadEventInfo.dataSpec.length} uriScheme=${loadEventInfo.dataSpec.uri.scheme ?: "none"}"
+
+    /** Logs only video transfer timing/byte counts; URLs and request headers are never logged. */
+    private val videoTransferListener = object : TransferListener {
+        override fun onTransferInitializing(source: DataSource, dataSpec: DataSpec, isNetwork: Boolean) {
+            val request = videoStreamRequest(dataSpec) ?: return
+            val requestSequence = videoRequestSequence.incrementAndGet()
+            val now = SystemClock.elapsedRealtime()
+            val streamDiagnostics = videoDiagnosticsFor(request)
+            streamDiagnostics?.let { diagnostics ->
+                synchronized(diagnostics) { diagnostics.openCount += 1 }
+            }
+            videoTransferDiagnostics[source] = VideoTransferDiagnostics(
+                sourceInstanceId = request.sourceInstanceId,
+                mediaId = request.mediaId,
+                requestSequence = requestSequence,
+                position = dataSpec.position,
+                length = dataSpec.length,
+                uriScheme = dataSpec.uri.scheme ?: "none",
+                initializedAtMs = now,
+            )
+            Timber.tag(TAG).d(
+                "[VideoPlayback][dataSource] open requested sourceInstance=${sourceInstanceLabel(request.sourceInstanceId)} " +
+                    "request=$requestSequence mediaId=${request.mediaId} position=${dataSpec.position} " +
+                    "length=${dataSpec.length} uriScheme=${dataSpec.uri.scheme ?: "none"}",
+            )
+        }
+
+        override fun onTransferStart(source: DataSource, dataSpec: DataSpec, isNetwork: Boolean) {
+            val diagnostics = videoTransferDiagnostics[source] ?: return
+            val now = SystemClock.elapsedRealtime()
+            diagnostics.startedAtMs = now
+            diagnostics.lastProgressAtMs = now
+            Timber.tag(TAG).d(
+                "[VideoPlayback][dataSource] open started sourceInstance=${sourceInstanceLabel(diagnostics.sourceInstanceId)} " +
+                    "request=${diagnostics.requestSequence} mediaId=${diagnostics.mediaId}",
+            )
+        }
+
+        override fun onBytesTransferred(
+            source: DataSource,
+            dataSpec: DataSpec,
+            isNetwork: Boolean,
+            bytesTransferred: Int,
+        ) {
+            val diagnostics = videoTransferDiagnostics[source] ?: return
+            val now = SystemClock.elapsedRealtime()
+            diagnostics.totalBytes += bytesTransferred
+            diagnostics.sourceInstanceId?.let { sourceInstanceId ->
+                videoStreamDiagnostics[sourceInstanceId]?.let { streamDiagnostics ->
+                    synchronized(streamDiagnostics) {
+                        streamDiagnostics.totalBytes += bytesTransferred
+                        if (streamDiagnostics.firstByteAtMs == null) {
+                            streamDiagnostics.firstByteAtMs = now
+                        }
+                        streamDiagnostics.lastByteAtMs = now
+                    }
+                }
+            }
+            val elapsedMs = now - diagnostics.startedAtMs
+            if (!diagnostics.firstByteLogged) {
+                diagnostics.firstByteLogged = true
+                diagnostics.lastProgressAtMs = now
+                Timber.tag(TAG).d(
+                    "[VideoPlayback][dataSource] first byte sourceInstance=${sourceInstanceLabel(diagnostics.sourceInstanceId)} " +
+                        "request=${diagnostics.requestSequence} mediaId=${diagnostics.mediaId} " +
+                        "openToFirstByteMs=$elapsedMs bytesRead=${diagnostics.totalBytes}",
+                )
+            } else if (now - diagnostics.lastProgressAtMs >= 3_000L) {
+                diagnostics.lastProgressAtMs = now
+                Timber.tag(TAG).d(
+                    "[VideoPlayback][dataSource] transfer progress sourceInstance=${sourceInstanceLabel(diagnostics.sourceInstanceId)} " +
+                        "request=${diagnostics.requestSequence} mediaId=${diagnostics.mediaId} " +
+                        "elapsedMs=$elapsedMs bytesRead=${diagnostics.totalBytes}",
+                )
+            }
+        }
+
+        override fun onTransferEnd(source: DataSource, dataSpec: DataSpec, isNetwork: Boolean) {
+            val diagnostics = videoTransferDiagnostics.remove(source) ?: return
+            Timber.tag(TAG).d(
+                "[VideoPlayback][dataSource] open ended sourceInstance=${sourceInstanceLabel(diagnostics.sourceInstanceId)} " +
+                    "request=${diagnostics.requestSequence} mediaId=${diagnostics.mediaId} " +
+                    "bytesRead=${diagnostics.totalBytes} elapsedMs=${SystemClock.elapsedRealtime() - diagnostics.startedAtMs} " +
+                    "endSignal=transferEnd",
+            )
+        }
+    }
 
     /** Holds the combined crossfade-related settings emitted from DataStore. */
     private data class CrossfadeSettings(
@@ -542,7 +801,14 @@ class MusicService :
                     setSmallIcon(R.drawable.vivimusicnotification)
                 },
         )
-        player = createExoPlayer()
+        // Read these once before the player/factory can be used. The ongoing collector below
+        // keeps the gate current after startup, while this prevents a Player V2 launch from
+        // briefly creating a video source before DataStore emits its first value.
+        videoPlaybackEnabled = dataStore.get(VideoPlaybackKey, false)
+        playerV2Enabled = dataStore.get(UsePlayerV2Key, false)
+        jioSaavnStreamingEnabled = dataStore.get(EnableSaavnStreamingKey, false)
+        playerBackgroundStyle = dataStore.get(PlayerBackgroundStyleKey).toEnum(PlayerBackgroundStyle.DEFAULT)
+        player = createExoPlayer(allowVideo = true)
         player.addListener(this@MusicService)
         sleepTimer = SleepTimer(scope, player)
         player.addListener(sleepTimer)
@@ -598,6 +864,65 @@ class MusicService :
         audioQuality = dataStore.get(AudioQualityKey).toEnum(com.music.vivi.constants.AudioQuality.AUTO)
         ipVersion = dataStore.get(IpVersionKey).toEnum(IpVersion.AUTO)
         playerVolume = MutableStateFlow(dataStore.get(PlayerVolumeKey, 1f).coerceIn(0f, 1f))
+
+        // Keep this as a service-side gate: the MediaSource factory must never depend on UI
+        // composition state, and Player V2 is intentionally video-ineligible.
+        scope.launch {
+            combine(
+                dataStore.data.map { preferences -> preferences[VideoPlaybackKey] ?: false },
+                dataStore.data.map { preferences -> preferences[UsePlayerV2Key] ?: false },
+                dataStore.data.map { preferences -> preferences[EnableSaavnStreamingKey] ?: false },
+                dataStore.data.map { preferences ->
+                    preferences[PlayerBackgroundStyleKey].toEnum(PlayerBackgroundStyle.DEFAULT)
+                },
+            ) { enabled, usePlayerV2, useSaavn, backgroundStyle ->
+                VideoPlaybackSettings(enabled, usePlayerV2, useSaavn, backgroundStyle)
+            }
+                .collect { settings ->
+                    val (enabled, usePlayerV2, useSaavn, backgroundStyle) = settings
+                    val wasVideoEnabled = videoPlaybackEnabled
+                    val wasPlayerV2Enabled = playerV2Enabled
+                    val wasJioSaavnEnabled = jioSaavnStreamingEnabled
+                    val wasAppleMusicBackground = playerBackgroundStyle == PlayerBackgroundStyle.APPLE_MUSIC
+                    videoPlaybackEnabled = enabled
+                    playerV2Enabled = usePlayerV2
+                    jioSaavnStreamingEnabled = useSaavn
+                    playerBackgroundStyle = backgroundStyle
+                    val isAppleMusicBackground = backgroundStyle == PlayerBackgroundStyle.APPLE_MUSIC
+                    if (!enabled || usePlayerV2 || useSaavn || isAppleMusicBackground) {
+                        resetVideoAutoRetry("video playback mode changed")
+                    }
+                    if ((wasVideoEnabled && !enabled) ||
+                        (!wasPlayerV2Enabled && usePlayerV2) ||
+                        (!wasJioSaavnEnabled && useSaavn) ||
+                        (!wasAppleMusicBackground && isAppleMusicBackground)
+                    ) {
+                        cancelVideoStallWatchdog("video playback mode changed")
+                        rebuildCurrentAsAudioOnly(
+                            reason = when {
+                                usePlayerV2 -> "Player V2 enabled"
+                                useSaavn -> "JioSaavn streaming enabled"
+                                isAppleMusicBackground -> "Apple Music background enabled"
+                                else -> "Video playback disabled"
+                            },
+                            permanentVideoFallback = false,
+                        )
+                    } else if (wasAppleMusicBackground && !isAppleMusicBackground &&
+                        enabled && !usePlayerV2 && !useSaavn
+                    ) {
+                        // Keep the persisted VideoPlayback setting untouched. Returning to a
+                        // supported background reuses the same guarded route rebuild as AUTO
+                        // transitions, so only the current item is reconsidered for video.
+                        player.currentMediaItem?.let { currentItem ->
+                            handleCurrentMediaChanged(
+                                currentItem,
+                                Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED,
+                            )
+                        }
+                    }
+                    logVideoEligibility(player.currentMediaItem)
+                }
+        }
 
         // Initialize Google Cast
         initializeCast()
@@ -1117,7 +1442,7 @@ class MusicService :
         }
     }
 
-    private fun createExoPlayer(): ExoPlayer {
+    private fun createExoPlayer(allowVideo: Boolean = false): ExoPlayer {
         val eqProcessor = CustomEqualizerAudioProcessor()
         equalizerService.addAudioProcessor(eqProcessor)
 
@@ -1131,7 +1456,9 @@ class MusicService :
         }
 
         val player = ExoPlayer.Builder(this)
-            .setMediaSourceFactory(createMediaSourceFactory())
+            // Crossfade and preload use secondary players. Keep them audio-only in Phase 1 so
+            // the sole video renderer always belongs to the primary service player.
+            .setMediaSourceFactory(createMediaSourceFactory(allowVideo))
             .setRenderersFactory(createRenderersFactory(eqProcessor, silenceProcessor))
             .setHandleAudioBecomingNoisy(true)
             .setWakeMode(C.WAKE_MODE_NETWORK)
@@ -2246,11 +2573,128 @@ class MusicService :
 
     private var previousMediaItemIndex = C.INDEX_UNSET
 
+    private fun transitionReasonName(reason: Int): String = when (reason) {
+        Player.MEDIA_ITEM_TRANSITION_REASON_AUTO -> "AUTO"
+        Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT -> "REPEAT"
+        Player.MEDIA_ITEM_TRANSITION_REASON_SEEK -> "SEEK"
+        Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED -> "PLAYLIST_CHANGED"
+        else -> "UNKNOWN($reason)"
+    }
+
+    private fun mediaSourceUri(mediaItem: MediaItem): String? =
+        mediaItem.localConfiguration?.uri?.toString()
+
+    /** True only when the source selected for this exact queue item is already a video route. */
+    private fun hasCurrentVideoRoute(mediaItem: MediaItem): Boolean {
+        val mediaId = mediaItem.mediaId
+        return mediaId in videoSourceMediaIds &&
+            videoPlaybackRoutes[mediaId] != null &&
+            videoSourceUris[mediaId] == mediaSourceUri(mediaItem)
+    }
+
+    /**
+     * Media3 can resolve an upcoming item while another item remains current. For a muxed source
+     * that is fine because the source itself already contains video. A DASH route, however, needs
+     * a main-thread source replacement and was previously discarded in that preloading window.
+     * Recreate only the newly-current item once, so AUTO, SEEK, REPEAT and shuffle use the same
+     * resolver/install path as an explicit manual next.
+     */
+    private fun handleCurrentMediaChanged(mediaItem: MediaItem, reason: Int) {
+        val mediaId = mediaItem.mediaId
+        val index = player.currentMediaItemIndex
+        val routeBefore = videoPlaybackRoutes[mediaId]?.name ?: "AUDIO_ONLY"
+        val requestedBefore = videoPlaybackRequestedMediaId.value == mediaId
+        val reasonName = transitionReasonName(reason)
+        val action: String
+        logVideoEligibility(mediaItem)
+
+        if (index !in 0 until player.mediaItemCount || player.getMediaItemAt(index).mediaId != mediaId) {
+            action = "SKIP_INVALID_CURRENT_ITEM"
+        } else if (!shouldAttemptVideoFor(mediaItem)) {
+            pendingCurrentVideoRouteActivation = null
+            action = "KEEP_AUDIO_ONLY"
+        } else if (hasCurrentVideoRoute(mediaItem)) {
+            pendingCurrentVideoRouteActivation = null
+            videoPlaybackRequestedMediaId.value = mediaId
+            if (videoPlaybackRoutes[mediaId] == VideoPlaybackRoute.MUXED) {
+                maybeArmVideoStallWatchdog("transitionExistingMuxed")
+            }
+            action = "USE_EXISTING_${videoPlaybackRoutes[mediaId]}_SOURCE"
+        } else if (pendingCurrentVideoRouteActivation?.let {
+                it.mediaId == mediaId && it.mediaItemIndex == index
+            } == true
+        ) {
+            action = "ROUTE_REBUILD_ALREADY_REQUESTED"
+        } else {
+            val position = safeCurrentPlaybackPosition()
+            val shouldResume = player.playWhenReady
+            val replacementId = videoRouteReplacementSequence.incrementAndGet()
+            pendingCurrentVideoRouteActivation = CurrentVideoRouteActivation(
+                mediaId = mediaId,
+                mediaItemIndex = index,
+                sourceUri = mediaSourceUri(mediaItem),
+            )
+            // The URI is only an opaque source-generation marker. mediaId, metadata and the
+            // existing audio cache key remain stable, and the factory will still fail closed to
+            // the normal Opus resolver when no supported video route exists.
+            val routingItem = mediaItem.buildUpon()
+                .setUri("video-route:$replacementId:$mediaId")
+                .setCustomCacheKey(mediaId)
+                .build()
+            Timber.tag(TAG).i(
+                "[VideoPlayback][transition] oldMediaId=${previousMediaItemIndex.takeIf { it in 0 until player.mediaItemCount }?.let { player.getMediaItemAt(it).mediaId } ?: "none"} " +
+                    "newMediaId=$mediaId index=$index reason=$reasonName videoRequested=$requestedBefore " +
+                    "routeBefore=$routeBefore action=REBUILD_CURRENT_ROUTE position=$position",
+            )
+            player.replaceMediaItem(index, routingItem)
+            player.prepare()
+            player.seekTo(index, position)
+            player.playWhenReady = shouldResume
+            return
+        }
+
+        Timber.tag(TAG).i(
+            "[VideoPlayback][transition] oldMediaId=${previousMediaItemIndex.takeIf { it in 0 until player.mediaItemCount }?.let { player.getMediaItemAt(it).mediaId } ?: "none"} " +
+                "newMediaId=$mediaId index=$index reason=$reasonName videoRequested=$requestedBefore " +
+                "routeBefore=$routeBefore action=$action",
+        )
+    }
+
     override fun onMediaItemTransition(
         mediaItem: MediaItem?,
         reason: Int,
     ) {
-        // Force Repeat One if the player ignored it and auto-advanced
+        cancelVideoStallWatchdog("media item changed")
+        if (mediaItem?.mediaId != videoAutoRetryMediaId ||
+            player.currentMediaItemIndex != videoAutoRetryMediaItemIndex
+        ) {
+            resetVideoAutoRetry("media item changed")
+        }
+        if (mediaItem?.mediaId != audioOnlyFallbackMediaId) {
+            audioOnlyFallbackMediaId = null
+            audioOnlyFallbackStartedAtMs = null
+        }
+        // A newly created source may attempt video independently of the audio source. Do not let
+        // an old first-frame signal keep a new song's artwork hidden.
+        videoPlaybackRequestedMediaId.value = null
+        videoPlaybackActiveMediaId.value = null
+        maybeArmVideoStallWatchdog("mediaItemTransition")
+        // Media3 may have already created upcoming sources before the user switches to Player V2,
+        // disables video, or begins Cast. Convert such a pre-created merged source on arrival.
+        if (mediaItem != null &&
+            mediaItem.mediaId in videoSourceMediaIds &&
+            !shouldAttemptVideoFor(mediaItem)
+        ) {
+            scope.launch {
+                rebuildCurrentAsAudioOnly(
+                    reason = "Current player mode does not support video",
+                    permanentVideoFallback = false,
+                    expectedMediaId = mediaItem.mediaId,
+                )
+            }
+        }
+        // Force Repeat One if the player ignored it and auto-advanced.
+        var redirectedForRepeatOne = false
         if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) {
             if (previousMediaItemIndex != C.INDEX_UNSET && previousMediaItemIndex < player.mediaItemCount) {
                 val finishedMediaId = player.getMediaItemAt(previousMediaItemIndex).mediaId
@@ -2263,7 +2707,13 @@ class MusicService :
                 previousMediaItemIndex != player.currentMediaItemIndex) {
 
                 player.seekTo(previousMediaItemIndex, 0)
+                redirectedForRepeatOne = true
             }
+        }
+        // Do not resolve the transient next item while redirecting Repeat One. The following SEEK
+        // transition for the actual repeated item enters this same common routing path.
+        if (mediaItem != null && !redirectedForRepeatOne) {
+            handleCurrentMediaChanged(mediaItem, reason)
         }
         previousMediaItemIndex = player.currentMediaItemIndex
 
@@ -2401,6 +2851,14 @@ class MusicService :
     override fun onPlaybackStateChanged(
         @Player.State playbackState: Int,
     ) {
+        when (playbackState) {
+            Player.STATE_BUFFERING -> {
+                maybeArmVideoStallWatchdog("playbackState")
+                logVideoPlaybackTimeline("buffering")
+            }
+            Player.STATE_READY, Player.STATE_IDLE, Player.STATE_ENDED ->
+                cancelVideoStallWatchdog("player state=$playbackState")
+        }
         // Force Repeat All if the player ignored it and ended playback
         if (playbackState == Player.STATE_ENDED) {
             val repeatMode = runBlocking { dataStore.get(RepeatModeKey, REPEAT_MODE_OFF) }
@@ -2417,6 +2875,8 @@ class MusicService :
         }
 
         if (playbackState == Player.STATE_READY) {
+            logAudioOnlyFallbackState("READY")
+            logVideoAutoRetrySuccessIfNeeded()
             consecutivePlaybackErr = 0
             retryCount = 0
             waitingForNetworkConnection.value = false
@@ -2436,6 +2896,11 @@ class MusicService :
     }
 
     override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+        if (!playWhenReady) {
+            cancelVideoStallWatchdog("playback paused")
+        } else if (player.playbackState == Player.STATE_BUFFERING) {
+            maybeArmVideoStallWatchdog("playWhenReady")
+        }
         // Safety net: if local player tries to start while casting, immediately pause it
         if (playWhenReady && castConnectionHandler?.isCasting?.value == true) {
             player.pause()
@@ -2454,6 +2919,59 @@ class MusicService :
 
         if (playWhenReady) {
             setupLoudnessEnhancer()
+        }
+    }
+
+    override fun onIsPlayingChanged(isPlaying: Boolean) {
+        if (isPlaying) {
+            logAudioOnlyFallbackState("PLAYING")
+            audioOnlyFallbackMediaId = null
+            audioOnlyFallbackStartedAtMs = null
+        }
+    }
+
+    override fun onTimelineChanged(timeline: Timeline, reason: Int) {
+        logVideoPlaybackTimeline("timelineChanged")
+    }
+
+    override fun onTracksChanged(tracks: Tracks) {
+        logVideoPlaybackTracks()
+        val item = player.currentMediaItem ?: return
+        val hasVideo = tracks.groups.any { it.type == C.TRACK_TYPE_VIDEO && it.isSelected }
+        if (hasVideo && item.mediaId in videoSourceMediaIds && shouldAttemptVideoFor(item)) {
+            videoPlaybackRequestedMediaId.value = item.mediaId
+        }
+        val selectedVideo = tracks.groups.firstOrNull { it.type == C.TRACK_TYPE_VIDEO }
+            ?.let { group -> (0 until group.length).firstOrNull(group::isTrackSelected)?.let(group::getTrackFormat) }
+        val selectedAudio = tracks.groups.firstOrNull { it.type == C.TRACK_TYPE_AUDIO }
+            ?.let { group -> (0 until group.length).firstOrNull(group::isTrackSelected)?.let(group::getTrackFormat) }
+        if (hasVideo && videoPlaybackRoutes[item.mediaId] == VideoPlaybackRoute.DASH &&
+            selectedVideo != null && selectedAudio != null
+        ) {
+            Timber.tag(TAG).i(
+                "[VideoPlayback][route] mediaId=${item.mediaId} " +
+                    "musicVideoType=${resolvedMusicVideoTypes[item.mediaId] ?: item.metadata?.musicVideoType ?: "unknown"} " +
+                    "route=SINGLE_DASH_VIDEO videoMime=${selectedVideo.sampleMimeType} " +
+                    "videoCodec=${selectedVideo.codecs ?: "unknown"} audioMime=${selectedAudio.sampleMimeType} " +
+                    "audioCodec=${selectedAudio.codecs ?: "unknown"}",
+            )
+        }
+        tracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }.forEach { group ->
+            for (index in 0 until group.length) {
+                if (!group.isTrackSelected(index)) continue
+                val format = group.getTrackFormat(index)
+                val opus = format.sampleMimeType == "audio/opus"
+                val route = if (hasVideo && videoPlaybackRoutes[item.mediaId] == VideoPlaybackRoute.DASH) {
+                    "SINGLE_DASH_VIDEO"
+                } else if (hasVideo) "SINGLE_MUXED_VIDEO"
+                    else if (opus) "AUDIO_ONLY_OPUS" else "AUDIO_ONLY"
+                Timber.tag(TAG).i(
+                    "[VideoPlayback][route] mediaId=${item.mediaId} " +
+                        "musicVideoType=${resolvedMusicVideoTypes[item.mediaId] ?: item.metadata?.musicVideoType ?: "unknown"} " +
+                        "route=$route audioMime=${format.sampleMimeType} " +
+                        "audioCodec=${format.codecs ?: if (opus) "opus" else "unknown"} audioBitrate=${format.bitrate}",
+                )
+            }
         }
     }
 
@@ -2755,6 +3273,23 @@ class MusicService :
 
         val mediaId = player.currentMediaItem?.mediaId
         Timber.tag(TAG).w(error, "Player error occurred for $mediaId: errorCode=${error.errorCode}, message=${error.message}")
+
+        // Keep automatic-retry diagnostics complete without broadening the video-failure
+        // classification below. A player error remains eligible for fallback only through
+        // isVideoOnlyFailure, so audio errors still follow the existing recovery policy.
+        if (mediaId != null && isCurrentAutoRetryConsumed(mediaId) && !videoAutoRetrySucceeded) {
+            Timber.tag(TAG).w(
+                "[VideoPlayback][autoRetry] retry failed mediaId=$mediaId attempt=1 " +
+                    "reason=PLAYER_ERROR errorCode=${error.errorCodeName}",
+            )
+        }
+
+        // MergingMediaSource reports child failures through the primary player. Before the normal
+        // audio recovery policy can clear caches, retry this one item without its video child.
+        // This preserves the queue, MediaSession and audio-only resolver unchanged.
+        if (mediaId != null && isVideoOnlyFailure(mediaId, error)) {
+            if (fallbackToAudioOnly(mediaId, error)) return
+        }
         reportException(error)
 
         // Check if this song has failed too many times
@@ -2840,25 +3375,46 @@ class MusicService :
     }
 
     /**
-     * Stops the player, clears all caches for the current song on the IO thread,
-     * then restarts playback — ensuring no stale cache data causes parse errors.
-     * Safe to call from the main thread (UI).
+     * Stops the player, clears the current audio cache/URL entry, then re-prepares from zero.
+     * The video source is uncached; prepare causes its existing resolving data source to reopen.
      */
     fun retryCurrentStream() {
         val mediaId = player.currentMediaItem?.mediaId ?: return
+        restartCurrentStream(mediaId, clearAudioCache = true, resetVideoDiagnostics = false)
+    }
 
-        // Stop player before touching the cache so ExoPlayer isn't mid-read
+    /**
+     * Shared stop/prepare restart path. The automatic video retry deliberately leaves the audio
+     * cache and URL cache intact, so it only asks the uncached video child to make a new request.
+     */
+    private fun restartCurrentStream(
+        expectedMediaId: String,
+        clearAudioCache: Boolean,
+        resetVideoDiagnostics: Boolean,
+        resumePositionMs: Long = 0L,
+    ): Boolean {
+        if (player.currentMediaItem?.mediaId != expectedMediaId) return false
+        cancelVideoStallWatchdog("stream restart")
         player.stop()
-
-        // Clear all caches synchronously on IO — must finish before prepare()
-        runBlocking(Dispatchers.IO) {
-            performAggressiveCacheClear(mediaId)
+        if (clearAudioCache) {
+            runBlocking(Dispatchers.IO) { performAggressiveCacheClear(expectedMediaId) }
         }
-
-        // Now safe to restart — ExoPlayer will fetch a fresh stream
-        player.seekTo(0)
+        if (resetVideoDiagnostics) {
+            videoSourceInstanceIds[expectedMediaId]?.let { sourceInstanceId ->
+                videoStreamDiagnostics[sourceInstanceId] = VideoStreamDiagnostics(
+                    sourceInstanceId = sourceInstanceId,
+                    mediaId = expectedMediaId,
+                )
+            }
+            if (videoPlaybackActiveMediaId.value == expectedMediaId) {
+                videoPlaybackActiveMediaId.value = null
+            }
+        }
+        if (player.currentMediaItem?.mediaId != expectedMediaId) return false
+        player.seekTo(resumePositionMs.coerceAtLeast(0L))
         player.prepare()
         player.play()
+        return true
     }
 
     /**
@@ -3344,17 +3900,1265 @@ class MusicService :
         }
     }
 
-    private fun createMediaSourceFactory() =
-        DefaultMediaSourceFactory(
-            createDataSourceFactory(),
-            ExtractorsFactory {
-                arrayOf(
-                    MatroskaExtractor(),        // .webm / Opus
-                    FragmentedMp4Extractor(),   // fragmented .mp4 / AAC (YouTube)
-                    Mp4Extractor(),             // regular .mp4 / AAC (JioSaavn)
-                )
-            },
+    private fun createMediaSourceFactory(allowVideo: Boolean): MediaSource.Factory {
+        val audioFactory = createLegacyMediaSourceFactory(allowVideo = false)
+        return object : MediaSource.Factory {
+            override fun createMediaSource(mediaItem: MediaItem): MediaSource {
+                val dashRoute = dashRouteFor(mediaItem)
+                if (dashRoute != null && allowVideo && shouldAttemptVideoFor(mediaItem)) {
+                    return createSideloadedDashMediaSource(
+                        mediaItem = mediaItem,
+                        sourceInstanceId = dashRoute.first,
+                        route = dashRoute.second,
+                        audioFactory = audioFactory,
+                    )
+                }
+                if (!allowVideo || !shouldAttemptVideoFor(mediaItem)) {
+                    return audioFactory.createMediaSource(mediaItem)
+                }
+                val mediaId = mediaItem.mediaId
+                val instance = playbackSourceInstanceSequence.incrementAndGet()
+                val isMuxed = java.util.concurrent.atomic.AtomicBoolean(false)
+                val audioDataSource = createDataSourceFactory()
+                val muxedDataSource = DefaultDataSource.Factory(this@MusicService,
+                    OkHttpDataSource.Factory(OkHttpClient.Builder().proxy(YouTube.proxy).build()))
+                    .setTransferListener(videoTransferListener)
+                val routingFactory = DataSource.Factory {
+                    MuxedRoutingDataSource(audioDataSource, muxedDataSource, resolve = {
+                        Timber.tag(TAG).i(
+                            "[VideoPlayback][route] mediaId=$mediaId sourceInstance=$instance " +
+                                "routeResolverStart=true",
+                        )
+                        val route = try {
+                            runBlocking(Dispatchers.IO) {
+                                InnerTubeXPlayer.resolveMuxed360(mediaId, mediaItem.metadata?.musicVideoType)
+                            }
+                        } catch (error: Exception) {
+                            // Do not expose signed URLs or request headers in resolver diagnostics.
+                            Timber.tag(TAG).w("[VideoPlayback][route] mediaId=$mediaId muxed unavailable errorType=${error.javaClass.simpleName}")
+                            null
+                        }
+                        route?.musicVideoType?.let { resolvedMusicVideoTypes[mediaId] = it }
+                        val stream = route?.stream
+                        val dashRoute = if (stream == null && route?.musicVideoType in ACTUAL_MUSIC_VIDEO_TYPES &&
+                            shouldAttemptVideoFor(mediaItem)
+                        ) {
+                            try {
+                                runBlocking(Dispatchers.IO) {
+                                    InnerTubeXPlayer.resolveDash360(mediaId, route?.musicVideoType)
+                                }
+                            } catch (error: Exception) {
+                                // Raw response parsing and cipher resolution must fail closed to the
+                                // original audio path; keep sensitive stream details out of logs.
+                                Timber.tag(TAG).w(
+                                    "[VideoPlayback][dash] mediaId=$mediaId unavailable " +
+                                        "errorType=${error.javaClass.simpleName}",
+                                )
+                                null
+                            }
+                        } else {
+                            null
+                        }
+                        dashRoute?.musicVideoType?.let { resolvedMusicVideoTypes[mediaId] = it }
+                        if (stream == null && dashRoute != null && shouldAttemptVideoFor(mediaItem)) {
+                            dashRoutes[instance] = dashRoute
+                            scope.launch {
+                                installSideloadedDashRoute(mediaItem, instance, dashRoute)
+                            }
+                            // Keep the current audio-only DataSource until the main-thread source
+                            // replacement installs the one DashMediaSource. This never alters the
+                            // existing audio resolver/cache/Opus selection for the fallback path.
+                            null
+                        } else if (stream == null || !shouldAttemptVideoFor(mediaItem)) {
+                            null // Original audio resolver/cache/quality selection, never muxed AAC.
+                        } else {
+                            isMuxed.set(true)
+                            videoSourceMediaIds += mediaId
+                            videoPlaybackRoutes[mediaId] = VideoPlaybackRoute.MUXED
+                            videoSourceInstanceIds[mediaId] = instance
+                            mediaSourceUri(mediaItem)?.let { videoSourceUris[mediaId] = it }
+                            videoStreamDiagnostics[instance] = VideoStreamDiagnostics(instance, mediaId).apply {
+                                bitrate = stream.bitrate
+                                contentLength = stream.contentLength
+                                mimeType = stream.mimeType
+                                codecs = stream.codecs
+                                itag = stream.itag
+                            }
+                            Timber.tag(TAG).i(
+                                "[VideoPlayback][route] mediaId=$mediaId musicVideoType=${route.musicVideoType} " +
+                                    "route=SINGLE_MUXED_VIDEO itag=${stream.itag} mime=${stream.mimeType} " +
+                                    "codecs=${stream.codecs} audioCodec=${stream.codecs?.split(',')?.firstOrNull { it.trim().startsWith("mp4a") }?.trim()} " +
+                                    "width=${stream.width} height=${stream.height} bitrate=${stream.bitrate}",
+                            )
+                            scope.launch {
+                                val current = player.currentMediaItem
+                                if (current?.mediaId == mediaId &&
+                                    current.localConfiguration == mediaItem.localConfiguration &&
+                                    videoSourceInstanceIds[mediaId] == instance
+                                ) {
+                                    if (!shouldAttemptVideoFor(mediaItem)) {
+                                        rebuildCurrentAsAudioOnly("muxed route disabled", false, expectedMediaId = mediaId)
+                                    } else {
+                                        pendingCurrentVideoRouteActivation = null
+                                        videoPlaybackRequestedMediaId.value = mediaId
+                                        maybeArmVideoStallWatchdog("muxedResolved")
+                                    }
+                                }
+                            }
+                            DataSpec.Builder().setUri(stream.streamUrl).setKey("video:$instance:$mediaId")
+                                .setHttpRequestHeaders(stream.headers).build()
+                        }
+                    }, onMuxedError = { error ->
+                        if (videoSourceInstanceIds[mediaId] == instance) markVideoLoadFailure(mediaId, error)
+                    })
+                }
+                return androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(
+                    routingFactory,
+                    ExtractorsFactory { arrayOf(MatroskaExtractor(), FragmentedMp4Extractor(), Mp4Extractor()) },
+                ).createMediaSource(mediaItem).also { source ->
+                    source.addEventListener(Handler(Looper.getMainLooper()), object : MediaSourceEventListener {
+                        override fun onLoadError(
+                            windowIndex: Int, mediaPeriodId: MediaSource.MediaPeriodId?,
+                            loadEventInfo: LoadEventInfo, mediaLoadData: MediaLoadData,
+                            error: IOException, wasCanceled: Boolean,
+                        ) {
+                            // The muxed container is one source. Do not tag errors from the delegated
+                            // original audio resolver/cache when no muxed stream was selected.
+                            if (isMuxed.get() && !wasCanceled && videoSourceInstanceIds[mediaId] == instance) {
+                                markVideoLoadFailure(mediaId, error)
+                            }
+                        }
+                    })
+                }
+            }
+
+            override fun setDrmSessionManagerProvider(provider: DrmSessionManagerProvider): MediaSource.Factory {
+                audioFactory.setDrmSessionManagerProvider(provider)
+                return this
+            }
+            override fun setLoadErrorHandlingPolicy(policy: LoadErrorHandlingPolicy): MediaSource.Factory {
+                audioFactory.setLoadErrorHandlingPolicy(policy)
+                return this
+            }
+            override fun getSupportedTypes(): IntArray = audioFactory.supportedTypes
+        }
+    }
+
+    /** Returns the memory-only route addressed by the opaque URI used for source replacement. */
+    private fun dashRouteFor(mediaItem: MediaItem): Pair<Long, InnerTubeXPlayer.DashRoute>? {
+        val uri = mediaItem.localConfiguration?.uri ?: return null
+        if (uri.scheme != SIDELOADED_DASH_SCHEME) return null
+        val sourceInstanceId = uri.schemeSpecificPart.toLongOrNull() ?: return null
+        return dashRoutes[sourceInstanceId]?.let { sourceInstanceId to it }
+    }
+
+    /**
+     * The muxed resolver runs on a Loader thread. Only this main-scope continuation reads or
+     * mutates Player state, so resolving a DASH route cannot reintroduce wrong-thread access.
+     */
+    private fun installSideloadedDashRoute(
+        originalItem: MediaItem,
+        sourceInstanceId: Long,
+        route: InnerTubeXPlayer.DashRoute,
+    ) {
+        val current = player.currentMediaItem
+        val mediaId = originalItem.mediaId
+        val index = player.currentMediaItemIndex
+        if (current?.mediaId != mediaId ||
+            current.localConfiguration != originalItem.localConfiguration ||
+            index !in 0 until player.mediaItemCount ||
+            player.getMediaItemAt(index).mediaId != mediaId ||
+            !shouldAttemptVideoFor(originalItem) ||
+            dashRoutes[sourceInstanceId] !== route
+        ) {
+            dashRoutes.remove(sourceInstanceId, route)
+            return
+        }
+
+        val position = safeCurrentPlaybackPosition()
+        val shouldResume = player.playWhenReady
+        cancelVideoStallWatchdog("installing single DASH source")
+        val dashItem = originalItem.buildUpon()
+            .setUri("$SIDELOADED_DASH_SCHEME:$sourceInstanceId")
+            // Retain the existing audio cache key if this route has to fail closed to audio-only.
+            .setCustomCacheKey(mediaId)
+            .build()
+        Timber.tag(TAG).i(
+            "[VideoPlayback][dash] mediaId=$mediaId musicVideoType=${route.musicVideoType} " +
+                "installing=SINGLE_DASH_VIDEO sourceInstance=$sourceInstanceId position=$position",
         )
+        player.replaceMediaItem(index, dashItem)
+        player.prepare()
+        player.seekTo(index, position)
+        player.playWhenReady = shouldResume
+    }
+
+    /** Builds one audio + one video SegmentBase manifest; it never creates a MergingMediaSource. */
+    private fun createSideloadedDashMediaSource(
+        mediaItem: MediaItem,
+        sourceInstanceId: Long,
+        route: InnerTubeXPlayer.DashRoute,
+        audioFactory: MediaSource.Factory,
+    ): MediaSource = try {
+        val manifest = createSideloadedDashManifest(route)
+        videoSourceMediaIds += mediaItem.mediaId
+        videoPlaybackRoutes[mediaItem.mediaId] = VideoPlaybackRoute.DASH
+        videoSourceInstanceIds[mediaItem.mediaId] = sourceInstanceId
+        mediaSourceUri(mediaItem)?.let { videoSourceUris[mediaItem.mediaId] = it }
+        pendingCurrentVideoRouteActivation = null
+        videoPlaybackRequestedMediaId.value = mediaItem.mediaId
+        Timber.tag(TAG).i(
+            "[VideoPlayback][dash] mediaId=${mediaItem.mediaId} musicVideoType=${route.musicVideoType} " +
+                "route=SINGLE_DASH_VIDEO videoItag=${route.video.itag} " +
+                "videoMime=${route.video.mimeType.substringBefore(';')} videoCodec=${route.video.codecs} " +
+                "videoWidth=${route.video.width} videoHeight=${route.video.height} " +
+                "videoBitrate=${route.video.bitrate} audioItag=${route.audio.itag} " +
+                "audioMime=${route.audio.mimeType.substringBefore(';')} audioCodec=${route.audio.codecs} " +
+                "audioBitrate=${route.audio.bitrate} videoInitRange=${route.video.initRange.start}-${route.video.initRange.end} " +
+                "videoIndexRange=${route.video.indexRange.start}-${route.video.indexRange.end} " +
+                "audioInitRange=${route.audio.initRange.start}-${route.audio.initRange.end} " +
+                "audioIndexRange=${route.audio.indexRange.start}-${route.audio.indexRange.end}",
+        )
+        DashMediaSource.Factory(createSideloadedDashDataSourceFactory(route))
+            .createMediaSource(manifest, mediaItem)
+            .also { source ->
+                source.addEventListener(Handler(Looper.getMainLooper()), object : MediaSourceEventListener {
+                    override fun onLoadError(
+                        windowIndex: Int,
+                        mediaPeriodId: MediaSource.MediaPeriodId?,
+                        loadEventInfo: LoadEventInfo,
+                        mediaLoadData: MediaLoadData,
+                        error: IOException,
+                        wasCanceled: Boolean,
+                    ) {
+                        if (!wasCanceled && videoSourceInstanceIds[mediaItem.mediaId] == sourceInstanceId) {
+                            markVideoLoadFailure(mediaItem.mediaId, error)
+                        }
+                    }
+                })
+            }
+    } catch (error: Exception) {
+        // A malformed response must never leave a synthetic URI on the normal audio resolver.
+        dashRoutes.remove(sourceInstanceId)
+        videoFallbackMediaIds += mediaItem.mediaId
+        if (videoSourceInstanceIds[mediaItem.mediaId] == sourceInstanceId) {
+            videoSourceInstanceIds.remove(mediaItem.mediaId)
+            videoSourceMediaIds.remove(mediaItem.mediaId)
+            videoSourceUris.remove(mediaItem.mediaId)
+            videoPlaybackRoutes.remove(mediaItem.mediaId)
+            videoPlaybackRequestedMediaId.value = null
+        }
+        Timber.tag(TAG).w(
+            "[VideoPlayback][dash] mediaId=${mediaItem.mediaId} manifest unavailable " +
+                "errorType=${error.javaClass.simpleName}; using audio-only",
+        )
+        audioFactory.createMediaSource(mediaItem)
+    }
+
+    private fun createSideloadedDashManifest(route: InnerTubeXPlayer.DashRoute): DashManifest {
+        val audioRepresentation = createDashRepresentation(route.audio, isVideo = false)
+        val videoRepresentation = createDashRepresentation(route.video, isVideo = true)
+        val adaptationSets = listOf(
+            AdaptationSet(0, C.TRACK_TYPE_AUDIO, listOf(audioRepresentation), emptyList(), emptyList(), emptyList()),
+            AdaptationSet(1, C.TRACK_TYPE_VIDEO, listOf(videoRepresentation), emptyList(), emptyList(), emptyList()),
+        )
+        return DashManifest(
+            C.TIME_UNSET,
+            route.durationMs,
+            0L,
+            false,
+            C.TIME_UNSET,
+            C.TIME_UNSET,
+            C.TIME_UNSET,
+            C.TIME_UNSET,
+            null,
+            null,
+            null,
+            null,
+            listOf(Period("0", 0L, adaptationSets)),
+        )
+    }
+
+    private fun createDashRepresentation(
+        stream: InnerTubeXPlayer.DashStream,
+        isVideo: Boolean,
+    ): Representation {
+        val codecs = stream.codecs
+        val containerMimeType = stream.mimeType.substringBefore(';')
+        val sampleMimeType = if (isVideo) {
+            MimeTypes.getVideoMediaMimeType(codecs)
+        } else {
+            MimeTypes.getAudioMediaMimeType(codecs)
+        }
+        val formatBuilder = Format.Builder()
+            .setId(stream.itag.toString())
+            .setContainerMimeType(containerMimeType)
+            .setSampleMimeType(sampleMimeType)
+            .setCodecs(codecs)
+            .setAverageBitrate(stream.bitrate)
+            .setPeakBitrate(stream.bitrate)
+        if (isVideo) {
+            formatBuilder.setWidth(requireNotNull(stream.width)).setHeight(requireNotNull(stream.height))
+        } else {
+            stream.audioChannels?.let(formatBuilder::setChannelCount)
+            stream.audioSampleRate?.let(formatBuilder::setSampleRate)
+        }
+        val segmentBase = SegmentBase.SingleSegmentBase(
+            RangedUri(null, stream.initRange.start, stream.initRange.length),
+            1L,
+            0L,
+            stream.indexRange.start,
+            stream.indexRange.length,
+        )
+        return Representation.newInstance(
+            0L,
+            formatBuilder.build(),
+            listOf(BaseUrl(stream.streamUrl)),
+            segmentBase,
+        )
+    }
+
+    /** DASH streams remain explicitly uncached and have no overlap with the audio cache key. */
+    private fun createSideloadedDashDataSourceFactory(
+        route: InnerTubeXPlayer.DashRoute,
+    ): DataSource.Factory = ResolvingDataSource.Factory(
+        DefaultDataSource.Factory(
+            this,
+            OkHttpDataSource.Factory(OkHttpClient.Builder().proxy(YouTube.proxy).build()),
+        ),
+    ) { dataSpec ->
+        when (dataSpec.uri.toString()) {
+            route.video.streamUrl -> dataSpec.withRequestHeaders(route.video.headers)
+            route.audio.streamUrl -> dataSpec.withRequestHeaders(route.audio.headers)
+            else -> dataSpec
+        }
+    }
+
+    private fun safeCurrentPlaybackPosition(): Long = player.currentPosition.coerceAtLeast(0L).let { position ->
+        player.duration
+            .takeIf { it != C.TIME_UNSET && it > 0L }
+            ?.let { duration -> position.coerceAtMost((duration - 1L).coerceAtLeast(0L)) }
+            ?: position
+    }
+
+    // Retained for a future DASH/adaptive comparison; production routing above never enables it.
+    private fun createLegacyMediaSourceFactory(allowVideo: Boolean): MediaSource.Factory {
+        val extractorsFactory = ExtractorsFactory {
+            arrayOf(
+                MatroskaExtractor(),        // .webm / Opus / VP9
+                FragmentedMp4Extractor(),   // fragmented .mp4 / AAC (YouTube)
+                Mp4Extractor(),             // regular .mp4 / AAC (JioSaavn)
+            )
+        }
+        val audioFactory = DefaultMediaSourceFactory(createDataSourceFactory(), extractorsFactory)
+        val videoFactory = DefaultMediaSourceFactory(createVideoDataSourceFactory(), extractorsFactory)
+
+        return object : MediaSource.Factory {
+            override fun createMediaSource(mediaItem: MediaItem): MediaSource {
+                val audioSource = audioFactory.createMediaSource(mediaItem)
+                val sourceInstanceId = playbackSourceInstanceSequence.incrementAndGet()
+                val shouldMergeVideo = allowVideo && shouldAttemptVideoFor(mediaItem)
+                val isFallbackSource = mediaItem.mediaId == audioOnlyFallbackMediaId
+                val sourceLabel = when {
+                    shouldMergeVideo -> "merged#$sourceInstanceId"
+                    isFallbackSource -> "fallback#$sourceInstanceId"
+                    else -> "audio#$sourceInstanceId"
+                }
+                if (allowVideo && !shouldMergeVideo && isKnownAudioTrack(mediaItem)) {
+                    Timber.tag(TAG).i(
+                        "[VideoPlayback] skipping video for known audio track mediaId=${mediaItem.mediaId} " +
+                            "musicVideoType=${mediaItem.metadata?.musicVideoType}",
+                    )
+                }
+                if (!shouldMergeVideo && !isFallbackSource) return audioSource
+
+                // This is diagnostic-only and is attached for merged and fallback sources only.
+                // It does not alter the existing audio resolver, cache, or error recovery path.
+                audioSource.addEventListener(
+                    Handler(Looper.getMainLooper()),
+                    object : MediaSourceEventListener {
+                        override fun onLoadStarted(
+                            windowIndex: Int,
+                            mediaPeriodId: MediaSource.MediaPeriodId?,
+                            loadEventInfo: LoadEventInfo,
+                            mediaLoadData: MediaLoadData,
+                            elapsedRealtimeMs: Int,
+                        ) {
+                            Timber.tag(TAG).d(
+                                "[PlaybackDiag][audio][$sourceLabel] load started mediaId=${mediaItem.mediaId} " +
+                                    loadEventDiagnostics(loadEventInfo, mediaLoadData),
+                            )
+                        }
+
+                        override fun onLoadCompleted(
+                            windowIndex: Int,
+                            mediaPeriodId: MediaSource.MediaPeriodId?,
+                            loadEventInfo: LoadEventInfo,
+                            mediaLoadData: MediaLoadData,
+                        ) {
+                            Timber.tag(TAG).d(
+                                "[PlaybackDiag][audio][$sourceLabel] load completed mediaId=${mediaItem.mediaId} " +
+                                    loadEventDiagnostics(loadEventInfo, mediaLoadData),
+                            )
+                        }
+
+                        override fun onLoadCanceled(
+                            windowIndex: Int,
+                            mediaPeriodId: MediaSource.MediaPeriodId?,
+                            loadEventInfo: LoadEventInfo,
+                            mediaLoadData: MediaLoadData,
+                        ) {
+                            Timber.tag(TAG).d(
+                                "[PlaybackDiag][audio][$sourceLabel] load canceled mediaId=${mediaItem.mediaId} " +
+                                    loadEventDiagnostics(loadEventInfo, mediaLoadData),
+                            )
+                        }
+
+                        override fun onLoadError(
+                            windowIndex: Int,
+                            mediaPeriodId: MediaSource.MediaPeriodId?,
+                            loadEventInfo: LoadEventInfo,
+                            mediaLoadData: MediaLoadData,
+                            error: IOException,
+                            wasCanceled: Boolean,
+                        ) {
+                            if (!wasCanceled) {
+                                Timber.tag(TAG).w(
+                                    "[PlaybackDiag][audio][$sourceLabel] load error mediaId=${mediaItem.mediaId} " +
+                                        "errorType=${error.javaClass.simpleName} " +
+                                        loadEventDiagnostics(loadEventInfo, mediaLoadData),
+                                )
+                            }
+                        }
+                    },
+                )
+
+                if (!shouldMergeVideo) return audioSource
+
+                // A distinct cache key prevents the video bytes from colliding with the existing
+                // audio cache. The video data source itself intentionally has no cache in Phase 1.
+                val videoItem = mediaItem.buildUpon()
+                    .setUri("video:${mediaItem.mediaId}")
+                    .setCustomCacheKey("video:$sourceInstanceId:${mediaItem.mediaId}")
+                    .build()
+                videoSourceMediaIds += mediaItem.mediaId
+                videoSourceInstanceIds[mediaItem.mediaId] = sourceInstanceId
+                videoStreamDiagnostics[sourceInstanceId] = VideoStreamDiagnostics(
+                    sourceInstanceId = sourceInstanceId,
+                    mediaId = mediaItem.mediaId,
+                )
+                scope.launch { maybeArmVideoStallWatchdog("mergedSource") }
+                val videoSource = videoFactory.createMediaSource(videoItem)
+                videoSource.addEventListener(
+                    Handler(Looper.getMainLooper()),
+                    object : MediaSourceEventListener {
+                        override fun onLoadStarted(
+                            windowIndex: Int,
+                            mediaPeriodId: MediaSource.MediaPeriodId?,
+                            loadEventInfo: LoadEventInfo,
+                            mediaLoadData: MediaLoadData,
+                            elapsedRealtimeMs: Int,
+                        ) {
+                            videoLoadStartedMediaIds += mediaItem.mediaId
+                            Timber.tag(TAG).d(
+                                "[VideoPlayback][$sourceLabel] load started mediaId=${mediaItem.mediaId} " +
+                                    loadEventDiagnostics(loadEventInfo, mediaLoadData),
+                            )
+                            maybeArmVideoStallWatchdog("videoLoadStarted")
+                            logVideoPlaybackTimeline("videoLoadStarted")
+                        }
+
+                        override fun onLoadCompleted(
+                            windowIndex: Int,
+                            mediaPeriodId: MediaSource.MediaPeriodId?,
+                            loadEventInfo: LoadEventInfo,
+                            mediaLoadData: MediaLoadData,
+                        ) {
+                            Timber.tag(TAG).d(
+                                "[VideoPlayback][$sourceLabel] load completed mediaId=${mediaItem.mediaId} " +
+                                    loadEventDiagnostics(loadEventInfo, mediaLoadData),
+                            )
+                        }
+
+                        override fun onLoadCanceled(
+                            windowIndex: Int,
+                            mediaPeriodId: MediaSource.MediaPeriodId?,
+                            loadEventInfo: LoadEventInfo,
+                            mediaLoadData: MediaLoadData,
+                        ) {
+                            videoLoadStartedMediaIds.remove(mediaItem.mediaId)
+                            Timber.tag(TAG).d(
+                                "[VideoPlayback][$sourceLabel] old merged video load canceled mediaId=${mediaItem.mediaId} " +
+                                    loadEventDiagnostics(loadEventInfo, mediaLoadData),
+                            )
+                        }
+
+                        override fun onLoadError(
+                            windowIndex: Int,
+                            mediaPeriodId: MediaSource.MediaPeriodId?,
+                            loadEventInfo: LoadEventInfo,
+                            mediaLoadData: MediaLoadData,
+                            error: IOException,
+                            wasCanceled: Boolean,
+                        ) {
+                            if (!wasCanceled) {
+                                Timber.tag(TAG).w(
+                                    "[VideoPlayback][$sourceLabel] load error mediaId=${mediaItem.mediaId} " +
+                                        "errorType=${error.javaClass.simpleName} " +
+                                        loadEventDiagnostics(loadEventInfo, mediaLoadData),
+                                )
+                                markVideoLoadFailure(mediaItem.mediaId, error)
+                            }
+                        }
+                    },
+                )
+                return MergingMediaSource(audioSource, videoSource)
+            }
+
+            override fun setDrmSessionManagerProvider(provider: DrmSessionManagerProvider): MediaSource.Factory {
+                audioFactory.setDrmSessionManagerProvider(provider)
+                videoFactory.setDrmSessionManagerProvider(provider)
+                return this
+            }
+
+            override fun setLoadErrorHandlingPolicy(policy: LoadErrorHandlingPolicy): MediaSource.Factory {
+                audioFactory.setLoadErrorHandlingPolicy(policy)
+                videoFactory.setLoadErrorHandlingPolicy(policy)
+                return this
+            }
+
+            override fun getSupportedTypes(): IntArray = audioFactory.supportedTypes
+        }
+    }
+
+    override fun onRenderedFirstFrame() {
+        val mediaId = player.currentMediaItem?.mediaId ?: return
+        if (videoPlaybackRequestedMediaId.value == mediaId) {
+            videoPlaybackActiveMediaId.value = mediaId
+            logVideoPlaybackTimeline("firstFrame")
+        }
+    }
+
+    private fun fallbackToAudioOnly(mediaId: String, error: PlaybackException): Boolean =
+        rebuildCurrentAsAudioOnly(
+            reason = "Video failed: ${error.errorCodeName}",
+            permanentVideoFallback = true,
+            error = error,
+            expectedMediaId = mediaId,
+        )
+
+    /** Rebuilds only the current merged source through the existing factory. */
+    private fun rebuildCurrentAsAudioOnly(
+        reason: String,
+        permanentVideoFallback: Boolean,
+        error: PlaybackException? = null,
+        expectedMediaId: String? = null,
+    ): Boolean {
+        if (isRebuildingCurrentAsAudioOnly) return false
+        val item = player.currentMediaItem ?: return false
+        val mediaId = item.mediaId
+        if (expectedMediaId != null && mediaId != expectedMediaId) return false
+        if (mediaId !in videoSourceMediaIds && videoPlaybackRequestedMediaId.value != mediaId) return false
+        val index = player.currentMediaItemIndex
+        if (index !in 0 until player.mediaItemCount || player.getMediaItemAt(index).mediaId != mediaId) return false
+        val position = safeCurrentPlaybackPosition()
+        val shouldResume = player.playWhenReady
+        if (permanentVideoFallback && mediaId in videoFallbackMediaIds) return false
+        isRebuildingCurrentAsAudioOnly = true
+        try {
+            cancelVideoStallWatchdog("audio-only rebuild")
+            val rebuildStartedAtMs = SystemClock.elapsedRealtime()
+            audioOnlyFallbackMediaId = mediaId
+            audioOnlyFallbackStartedAtMs = rebuildStartedAtMs
+            Timber.tag(TAG).i(
+                "[VideoPlayback] audio-only rebuild start mediaId=$mediaId " +
+                    "position=$position playWhenReady=$shouldResume",
+            )
+            if (error != null) {
+                Timber.tag(TAG).w(error, "[VideoPlayback] falling back to audio-only mediaId=$mediaId")
+            } else {
+                Timber.tag(TAG).i("[VideoPlayback] falling back to audio-only mediaId=$mediaId reason=$reason")
+            }
+            if (permanentVideoFallback) videoFallbackMediaIds += mediaId
+            videoLoadFailures.remove(mediaId)
+            videoLoadStartedMediaIds.remove(mediaId)
+            videoSourceMediaIds.remove(mediaId)
+            videoSourceUris.remove(mediaId)
+            videoPlaybackRoutes.remove(mediaId)
+            videoSourceInstanceIds.remove(mediaId)?.let(dashRoutes::remove)
+            videoPlaybackRequestedMediaId.value = null
+            videoPlaybackActiveMediaId.value = null
+            // ProgressiveMediaSource can update an equal MediaItem in-place, which would leave the
+            // old MergingMediaSource alive. A fallback-only URI forces replaceMediaItem to create
+            // and release the current source while preserving its mediaId, metadata, cache key and queue.
+            val audioOnlyItem = item.buildUpon()
+                .setUri("fallback:$mediaId")
+                .setCustomCacheKey(mediaId)
+                .build()
+            Timber.tag(TAG).d("[VideoPlayback] replacing current source with audio-only mediaId=$mediaId")
+            player.replaceMediaItem(index, audioOnlyItem)
+            Timber.tag(TAG).d("[VideoPlayback] audio-only source installed mediaId=$mediaId")
+            player.prepare()
+            Timber.tag(TAG).d("[VideoPlayback] audio-only prepare requested mediaId=$mediaId")
+            player.seekTo(index, position)
+            player.playWhenReady = shouldResume
+            return true
+        } finally {
+            isRebuildingCurrentAsAudioOnly = false
+        }
+    }
+
+    private fun markVideoLoadFailure(mediaId: String, error: Throwable) {
+        videoLoadFailures[mediaId] = error
+        Timber.tag(TAG).w(error, "[VideoPlayback] load error mediaId=$mediaId")
+    }
+
+    /**
+     * Audio-only errors remain on the existing recovery path. A DASH source is itself the video
+     * route, so an error from it intentionally falls back to audio-only rather than retrying it.
+     */
+    private fun isVideoOnlyFailure(mediaId: String, error: PlaybackException): Boolean =
+        videoPlaybackRoutes[mediaId] == VideoPlaybackRoute.DASH ||
+            isRecordedVideoLoadFailure(mediaId, error) ||
+            (mediaId in videoSourceMediaIds && isVideoRendererFailure(error))
+
+    /**
+     * onLoadError is also emitted for retryable loads. Match the exact throwable that reached
+     * Player.onPlayerError so a transient video retry cannot later misclassify an audio error.
+     */
+    private fun isRecordedVideoLoadFailure(mediaId: String, error: PlaybackException): Boolean {
+        val recorded = videoLoadFailures[mediaId] ?: return false
+        var cause: Throwable? = error
+        while (cause != null) {
+            if (cause === recorded) return true
+            cause = cause.cause
+        }
+        return false
+    }
+
+    private fun isVideoRendererFailure(error: PlaybackException): Boolean {
+        var cause: Throwable? = error
+        while (cause != null) {
+            if (cause is ExoPlaybackException &&
+                cause.type == ExoPlaybackException.TYPE_RENDERER &&
+                cause.rendererIndex != C.INDEX_UNSET &&
+                player.getRendererType(cause.rendererIndex) == C.TRACK_TYPE_VIDEO
+            ) {
+                return true
+            }
+            cause = cause.cause
+        }
+        return false
+    }
+
+    /**
+     * Detects a silent MergingMediaSource stall without ever treating an audio-only rebuffer as a
+     * video failure. A sample that advances re-arms the full timeout; a paused player never arms.
+     */
+    private fun maybeArmVideoStallWatchdog(reason: String) {
+        val mediaId = player.currentMediaItem?.mediaId ?: return
+        if (!isCurrentMergedVideoPlayback(mediaId) || !player.playWhenReady ||
+            player.playbackState != Player.STATE_BUFFERING
+        ) {
+            return
+        }
+        if (videoStallWatchdogJob?.isActive == true) return
+
+        val initialPosition = normalizedPlaybackPosition(player.currentPosition)
+        val initialBufferedPosition = normalizedPlaybackPosition(player.bufferedPosition)
+        Timber.tag(TAG).d(
+            "[VideoPlayback] stall watchdog armed mediaId=$mediaId reason=$reason " +
+                "position=$initialPosition buffered=$initialBufferedPosition",
+        )
+        videoStallWatchdogJob = scope.launch {
+            delay(VIDEO_STALL_TIMEOUT_MS)
+            if (!isActive || !isCurrentMergedVideoPlayback(mediaId) ||
+                !player.playWhenReady || player.playbackState != Player.STATE_BUFFERING
+            ) {
+                return@launch
+            }
+
+            val currentPosition = normalizedPlaybackPosition(player.currentPosition)
+            val currentBufferedPosition = normalizedPlaybackPosition(player.bufferedPosition)
+            val startupBufferStillInsufficient =
+                initialPosition == 0L &&
+                    currentPosition == 0L &&
+                    currentBufferedPosition < VIDEO_STARTUP_MIN_BUFFER_MS
+            val progressed = !startupBufferStillInsufficient &&
+                (currentPosition >= initialPosition + VIDEO_STALL_PROGRESS_THRESHOLD_MS ||
+                    currentBufferedPosition >= initialBufferedPosition + VIDEO_STALL_PROGRESS_THRESHOLD_MS)
+            if (progressed) {
+                Timber.tag(TAG).d(
+                    "[VideoPlayback] buffering progress mediaId=$mediaId " +
+                        "position=$currentPosition buffered=$currentBufferedPosition",
+                )
+                videoStallWatchdogJob = null
+                maybeArmVideoStallWatchdog("bufferingProgress")
+                return@launch
+            }
+
+            val firstFrameRendered = videoPlaybackActiveMediaId.value == mediaId
+            if (maybeRetryLowThroughputVideoStartup(
+                    mediaId = mediaId,
+                    currentPosition = currentPosition,
+                    currentBufferedPosition = currentBufferedPosition,
+                )
+            ) {
+                videoStallWatchdogJob = null
+                return@launch
+            }
+            if (maybeRetryExtractorOrSampleVideoStall(
+                    mediaId = mediaId,
+                    currentPosition = currentPosition,
+                    currentBufferedPosition = currentBufferedPosition,
+                )
+            ) {
+                videoStallWatchdogJob = null
+                return@launch
+            }
+            if (maybeRetryNetworkVideoStall(
+                    mediaId = mediaId,
+                    currentPosition = currentPosition,
+                    currentBufferedPosition = currentBufferedPosition,
+                )
+            ) {
+                videoStallWatchdogJob = null
+                return@launch
+            }
+            if (isCurrentAutoRetryConsumed(mediaId) && !videoAutoRetrySucceeded) {
+                when {
+                    isExtractorOrSampleVideoStall(mediaId) ->
+                    Timber.tag(TAG).w(
+                        "[VideoPlayback][autoRetry] retry exhausted mediaId=$mediaId " +
+                            "reason=EXTRACTOR_OR_SAMPLE_STALL attempt=1",
+                    )
+                    isNetworkVideoStall(mediaId) ->
+                    Timber.tag(TAG).w(
+                        "[VideoPlayback][autoRetry] retry exhausted mediaId=$mediaId " +
+                            "reason=NETWORK_STALL attempt=1",
+                    )
+                    else ->
+                    Timber.tag(TAG).w(
+                        "[VideoPlayback][autoRetry] retry failed mediaId=$mediaId attempt=1 " +
+                            "reason=STALL_AFTER_RETRY position=$currentPosition buffered=$currentBufferedPosition",
+                    )
+                }
+            }
+            logVideoStallDiagnostics(
+                mediaId = mediaId,
+                currentPosition = currentPosition,
+                currentBufferedPosition = currentBufferedPosition,
+                firstFrameRendered = firstFrameRendered,
+            )
+            Timber.tag(TAG).w(
+                "[VideoPlayback] stall watchdog triggered mediaId=$mediaId " +
+                    "position=$currentPosition buffered=$currentBufferedPosition firstFrame=$firstFrameRendered",
+            )
+            videoStallWatchdogJob = null
+            rebuildCurrentAsAudioOnly(
+                reason = "Merged video buffering stalled for ${VIDEO_STALL_TIMEOUT_MS}ms",
+                permanentVideoFallback = true,
+                expectedMediaId = mediaId,
+            )
+        }
+    }
+
+    private fun cancelVideoStallWatchdog(reason: String) {
+        if (videoStallWatchdogJob?.isActive == true) {
+            Timber.tag(TAG).d("[VideoPlayback] stall watchdog canceled reason=$reason")
+        }
+        videoStallWatchdogJob?.cancel()
+        videoStallWatchdogJob = null
+    }
+
+    /** This intentionally only identifies the primary player's active merged source. */
+    private fun isCurrentMergedVideoPlayback(mediaId: String): Boolean =
+        player.currentMediaItem?.mediaId == mediaId &&
+            !isRebuildingCurrentAsAudioOnly &&
+            mediaId in videoSourceMediaIds &&
+            videoPlaybackRoutes[mediaId] != VideoPlaybackRoute.DASH &&
+            (videoPlaybackRequestedMediaId.value == mediaId || mediaId in videoLoadStartedMediaIds) &&
+            mediaId !in videoFallbackMediaIds &&
+            videoPlaybackEnabled &&
+            !playerV2Enabled &&
+            !jioSaavnStreamingEnabled &&
+            playerBackgroundStyle != PlayerBackgroundStyle.APPLE_MUSIC &&
+            castConnectionHandler?.isCasting?.value != true
+
+    /** Media3 uses [C.TIME_UNSET] before a buffered position is known; it is not progress. */
+    private fun normalizedPlaybackPosition(position: Long): Long =
+        position.takeIf { it != C.TIME_UNSET && it >= 0L } ?: 0L
+
+    /** The automatic retry shares the manual retry's stop/prepare reopen path, but never clears audio cache. */
+    private fun maybeRetryLowThroughputVideoStartup(
+        mediaId: String,
+        currentPosition: Long,
+        currentBufferedPosition: Long,
+    ): Boolean {
+        if (currentPosition > VIDEO_AUTO_RETRY_MAX_STARTUP_POSITION_MS ||
+            currentBufferedPosition >= VIDEO_STARTUP_MIN_BUFFER_MS ||
+            !player.playWhenReady
+        ) {
+            return false
+        }
+        val sourceInstanceId = videoSourceInstanceIds[mediaId] ?: return false
+        if (isCurrentAutoRetryConsumed(mediaId)) {
+            return false
+        }
+        val snapshot = videoDiagnosticsSnapshot(sourceInstanceId) ?: return false
+        val firstByteAtMs = snapshot.firstByteAtMs ?: return false
+        val bitrate = snapshot.bitrate?.takeIf { it > 0 } ?: return false
+        val elapsedMs = SystemClock.elapsedRealtime() - firstByteAtMs
+        if (snapshot.totalBytes <= 0L || elapsedMs < VIDEO_AUTO_RETRY_MIN_OBSERVATION_MS) return false
+
+        val bytesPerSecond = snapshot.totalBytes * 1_000L / elapsedMs
+        val requiredBytesPerSecond = bitrate / 8L
+        if (bytesPerSecond.toDouble() >= requiredBytesPerSecond * VIDEO_AUTO_RETRY_REQUIRED_RATE_FRACTION) {
+            return false
+        }
+
+        Timber.tag(TAG).w(
+            "[VideoPlayback][autoRetry] mediaId=$mediaId reason=LOW_VIDEO_THROUGHPUT attempt=1 " +
+                "elapsedMs=$elapsedMs bytes=${snapshot.totalBytes} bytesPerSecond=$bytesPerSecond " +
+                "requiredBytesPerSecond=$requiredBytesPerSecond position=$currentPosition " +
+                "buffered=$currentBufferedPosition",
+        )
+        return restartVideoPlaybackOnce(
+            mediaId = mediaId,
+            sourceInstanceId = sourceInstanceId,
+            reason = "LOW_VIDEO_THROUGHPUT",
+        )
+    }
+
+    /** Retries a confirmed non-network video stall through the same one-shot reprepare path. */
+    private fun maybeRetryExtractorOrSampleVideoStall(
+        mediaId: String,
+        currentPosition: Long,
+        currentBufferedPosition: Long,
+    ): Boolean {
+        if (!player.playWhenReady) return false
+        val sourceInstanceId = videoSourceInstanceIds[mediaId] ?: return false
+        if (isCurrentAutoRetryConsumed(mediaId)) {
+            return false
+        }
+        val snapshot = videoDiagnosticsSnapshot(sourceInstanceId) ?: return false
+        val lastByteAgeMs = snapshot.lastByteAtMs
+            ?.let { SystemClock.elapsedRealtime() - it }
+            ?: return false
+        if (snapshot.totalBytes <= 0L || lastByteAgeMs >= VIDEO_STALL_TIMEOUT_MS) return false
+
+        Timber.tag(TAG).w(
+            "[VideoPlayback][autoRetry] mediaId=$mediaId reason=EXTRACTOR_OR_SAMPLE_STALL attempt=1 " +
+                "sourceInstance=$sourceInstanceId position=$currentPosition buffered=$currentBufferedPosition " +
+                "bytes=${snapshot.totalBytes} lastByteAgeMs=$lastByteAgeMs",
+        )
+        return hardRetryExtractorOrSampleVideoStall(mediaId, sourceInstanceId)
+    }
+
+    /** Soft retry: reuse the current source but force a fresh uncached video DataSource open. */
+    private fun restartVideoPlaybackOnce(
+        mediaId: String,
+        sourceInstanceId: Long,
+        reason: String,
+        resumePositionMs: Long = 0L,
+    ): Boolean {
+        recordVideoAutoRetry(mediaId, sourceInstanceId, reason, resumePositionMs)
+        if (restartCurrentStream(
+                expectedMediaId = mediaId,
+                clearAudioCache = false,
+                resetVideoDiagnostics = true,
+                resumePositionMs = resumePositionMs,
+            )
+        ) {
+            Timber.tag(TAG).i("[VideoPlayback][autoRetry] retry started mediaId=$mediaId attempt=1")
+            return true
+        }
+        Timber.tag(TAG).w("[VideoPlayback][autoRetry] retry failed mediaId=$mediaId reason=RESTART_REJECTED")
+        return false
+    }
+
+    /**
+     * Replaces the current item with a URI-distinct equivalent so Media3 releases the old merged
+     * source and creates a new MergingMediaSource/extractor pair, while retaining queue metadata.
+     */
+    private fun hardRetryExtractorOrSampleVideoStall(mediaId: String, sourceInstanceId: Long): Boolean {
+        val item = player.currentMediaItem ?: return false
+        val index = player.currentMediaItemIndex
+        if (item.mediaId != mediaId || index !in 0 until player.mediaItemCount ||
+            player.getMediaItemAt(index).mediaId != mediaId
+        ) {
+            return false
+        }
+        val resumePositionMs = player.currentPosition.coerceAtLeast(0L).let { position ->
+            player.duration.takeIf { it != C.TIME_UNSET && it > 0L }
+                ?.let { duration -> position.coerceAtMost((duration - 1L).coerceAtLeast(0L)) }
+                ?: position
+        }
+        val shouldResume = player.playWhenReady
+        recordVideoAutoRetry(mediaId, sourceInstanceId, "EXTRACTOR_OR_SAMPLE_STALL", resumePositionMs)
+        cancelVideoStallWatchdog("EXTRACTOR_OR_SAMPLE_STALL hard retry")
+        videoLoadFailures.remove(mediaId)
+        videoLoadStartedMediaIds.remove(mediaId)
+        videoPlaybackRequestedMediaId.value = null
+        videoPlaybackActiveMediaId.value = null
+        val retryItem = item.buildUpon()
+            .setUri("hard-retry:$mediaId")
+            .setCustomCacheKey(mediaId)
+            .build()
+        Timber.tag(TAG).w(
+            "[VideoPlayback][autoRetry] hard retry replacing merged source mediaId=$mediaId " +
+                "oldSourceInstance=$sourceInstanceId resumePositionMs=$resumePositionMs",
+        )
+        player.replaceMediaItem(index, retryItem)
+        player.prepare()
+        player.seekTo(index, resumePositionMs)
+        player.playWhenReady = shouldResume
+        Timber.tag(TAG).i("[VideoPlayback][autoRetry] retry started mediaId=$mediaId attempt=1")
+        return true
+    }
+
+    /** NETWORK_STALL only reopens the stream and resumes at the watchdog's current position. */
+    private fun maybeRetryNetworkVideoStall(
+        mediaId: String,
+        currentPosition: Long,
+        currentBufferedPosition: Long,
+    ): Boolean {
+        if (!player.playWhenReady || isCurrentAutoRetryConsumed(mediaId)) return false
+        val sourceInstanceId = videoSourceInstanceIds[mediaId] ?: return false
+        val snapshot = videoDiagnosticsSnapshot(sourceInstanceId) ?: return false
+        val lastByteAgeMs = snapshot.lastByteAtMs
+            ?.let { SystemClock.elapsedRealtime() - it }
+            ?: return false
+        if (snapshot.totalBytes <= 0L || lastByteAgeMs < VIDEO_STALL_TIMEOUT_MS) return false
+        Timber.tag(TAG).w(
+            "[VideoPlayback][autoRetry] mediaId=$mediaId reason=NETWORK_STALL attempt=1 " +
+                "sourceInstance=$sourceInstanceId position=$currentPosition buffered=$currentBufferedPosition " +
+                "bytes=${snapshot.totalBytes} lastByteAgeMs=$lastByteAgeMs " +
+                "resumePositionMs=$currentPosition",
+        )
+        return restartVideoPlaybackOnce(
+            mediaId = mediaId,
+            sourceInstanceId = sourceInstanceId,
+            reason = "NETWORK_STALL",
+            resumePositionMs = currentPosition,
+        )
+    }
+
+    private fun recordVideoAutoRetry(
+        mediaId: String,
+        sourceInstanceId: Long,
+        reason: String,
+        resumePositionMs: Long,
+    ) {
+        videoAutoRetryMediaId = mediaId
+        videoAutoRetryMediaItemIndex = player.currentMediaItemIndex
+        videoAutoRetrySourceInstanceId = sourceInstanceId
+        videoAutoRetryReason = reason
+        videoAutoRetryResumePositionMs = resumePositionMs
+        videoAutoRetryStartedAtMs = SystemClock.elapsedRealtime()
+        videoAutoRetrySucceeded = false
+    }
+
+    /** Must only be called from the main-thread Player/watchdog callbacks. */
+    private fun isCurrentAutoRetryConsumed(mediaId: String): Boolean =
+        videoAutoRetryMediaId == mediaId &&
+            videoAutoRetryMediaItemIndex == player.currentMediaItemIndex
+
+    private fun isExtractorOrSampleVideoStall(mediaId: String): Boolean {
+        val sourceInstanceId = videoSourceInstanceIds[mediaId] ?: return false
+        val snapshot = videoDiagnosticsSnapshot(sourceInstanceId) ?: return false
+        val lastByteAgeMs = snapshot.lastByteAtMs
+            ?.let { SystemClock.elapsedRealtime() - it }
+            ?: return false
+        return snapshot.totalBytes > 0L && lastByteAgeMs < VIDEO_STALL_TIMEOUT_MS
+    }
+
+    private fun isNetworkVideoStall(mediaId: String): Boolean {
+        val sourceInstanceId = videoSourceInstanceIds[mediaId] ?: return false
+        val snapshot = videoDiagnosticsSnapshot(sourceInstanceId) ?: return false
+        val lastByteAgeMs = snapshot.lastByteAtMs
+            ?.let { SystemClock.elapsedRealtime() - it }
+            ?: return false
+        return snapshot.totalBytes > 0L && lastByteAgeMs >= VIDEO_STALL_TIMEOUT_MS
+    }
+
+    /** Copies Loader-thread transfer values before the main-thread watchdog evaluates them. */
+    private fun videoDiagnosticsSnapshot(sourceInstanceId: Long): VideoStreamDiagnostics? {
+        val diagnostics = videoStreamDiagnostics[sourceInstanceId] ?: return null
+        return synchronized(diagnostics) {
+            VideoStreamDiagnostics(
+                sourceInstanceId = diagnostics.sourceInstanceId,
+                mediaId = diagnostics.mediaId,
+                openCount = diagnostics.openCount,
+                totalBytes = diagnostics.totalBytes,
+                firstByteAtMs = diagnostics.firstByteAtMs,
+                lastByteAtMs = diagnostics.lastByteAtMs,
+                bitrate = diagnostics.bitrate,
+                contentLength = diagnostics.contentLength,
+                mimeType = diagnostics.mimeType,
+                codecs = diagnostics.codecs,
+                itag = diagnostics.itag,
+            )
+        }
+    }
+
+    private fun logVideoAutoRetrySuccessIfNeeded() {
+        val mediaId = videoAutoRetryMediaId ?: return
+        if (videoAutoRetrySucceeded || player.currentMediaItem?.mediaId != mediaId ||
+            !isCurrentMergedVideoPlayback(mediaId)
+        ) {
+            return
+        }
+        videoAutoRetrySucceeded = true
+        val elapsedMs = videoAutoRetryStartedAtMs?.let { SystemClock.elapsedRealtime() - it } ?: 0L
+        val reason = videoAutoRetryReason
+        val resumePositionMs = videoAutoRetryResumePositionMs
+        if (reason == "NETWORK_STALL") {
+            Timber.tag(TAG).i(
+                "[VideoPlayback][autoRetry] retry succeeded mediaId=$mediaId reason=$reason " +
+                    "resumePositionMs=$resumePositionMs attempt=1 elapsedMs=$elapsedMs",
+            )
+        } else {
+            Timber.tag(TAG).i(
+                "[VideoPlayback][autoRetry] retry succeeded mediaId=$mediaId attempt=1 elapsedMs=$elapsedMs",
+            )
+        }
+    }
+
+    private fun resetVideoAutoRetry(reason: String) {
+        if (videoAutoRetryMediaId != null) {
+            Timber.tag(TAG).d("[VideoPlayback][autoRetry] reset mediaId=$videoAutoRetryMediaId reason=$reason")
+        }
+        videoAutoRetryMediaId = null
+        videoAutoRetryMediaItemIndex = null
+        videoAutoRetrySourceInstanceId = null
+        videoAutoRetryReason = null
+        videoAutoRetryResumePositionMs = 0L
+        videoAutoRetryStartedAtMs = null
+        videoAutoRetrySucceeded = false
+    }
+
+    /**
+     * Classifies only the observed transfer state at watchdog expiry. It deliberately does not
+     * affect the common audio-only fallback path: a short-lived transfer can still be unable to
+     * yield samples, while a five-second byte gap is a network-side symptom.
+     */
+    private fun logVideoStallDiagnostics(
+        mediaId: String,
+        currentPosition: Long,
+        currentBufferedPosition: Long,
+        firstFrameRendered: Boolean,
+    ) {
+        val sourceInstanceId = videoSourceInstanceIds[mediaId]
+        val diagnostics = sourceInstanceId?.let(videoStreamDiagnostics::get)
+        val now = SystemClock.elapsedRealtime()
+        val snapshot = diagnostics?.let {
+            synchronized(it) {
+                VideoStreamDiagnostics(
+                    sourceInstanceId = it.sourceInstanceId,
+                    mediaId = it.mediaId,
+                    openCount = it.openCount,
+                    totalBytes = it.totalBytes,
+                    lastByteAtMs = it.lastByteAtMs,
+                    bitrate = it.bitrate,
+                    contentLength = it.contentLength,
+                    mimeType = it.mimeType,
+                    codecs = it.codecs,
+                    itag = it.itag,
+                )
+            }
+        }
+        val lastByteAgeMs = snapshot?.lastByteAtMs?.let { now - it }
+        val classification = when {
+            snapshot == null || snapshot.totalBytes == 0L ||
+                lastByteAgeMs == null || lastByteAgeMs >= VIDEO_STALL_TIMEOUT_MS -> "NETWORK_STALL"
+            else -> "EXTRACTOR_OR_SAMPLE_STALL"
+        }
+        val playbackStarted = currentPosition > 0L || firstFrameRendered
+        Timber.tag(TAG).w(
+            "[VideoPlayback][stall] classification=$classification mediaId=$mediaId " +
+                "sourceInstance=${sourceInstanceLabel(sourceInstanceId)} position=$currentPosition " +
+                "buffered=$currentBufferedPosition transferTotalBytes=${snapshot?.totalBytes ?: 0L} " +
+                "lastByteAgeMs=${lastByteAgeMs?.toString() ?: "none"} bitrate=${snapshot?.bitrate ?: "unknown"} " +
+                "contentLength=${snapshot?.contentLength ?: "unknown"} firstFrame=$firstFrameRendered " +
+                "playbackStarted=$playbackStarted openCount=${snapshot?.openCount ?: 0} " +
+                "mime=${snapshot?.mimeType ?: "unknown"} codecs=${snapshot?.codecs ?: "unknown"} " +
+                "itag=${snapshot?.itag ?: "unknown"}",
+        )
+    }
+
+    /** The merged player timeline is the primary (audio) child timeline in Media3. */
+    private fun logVideoPlaybackTimeline(reason: String) {
+        val mediaId = player.currentMediaItem?.mediaId ?: return
+        if (!isCurrentMergedVideoPlayback(mediaId)) return
+        val timeline = player.currentTimeline
+        val periodIndex = player.currentPeriodIndex
+        if (timeline.isEmpty || periodIndex !in 0 until timeline.periodCount) {
+            Timber.tag(TAG).d(
+                "[VideoPlayback] timeline mediaId=$mediaId reason=$reason " +
+                    "playerDuration=${diagnosticDurationMs(player.duration)} periodDuration=TIME_UNSET " +
+                    "positionInWindow=TIME_UNSET",
+            )
+            return
+        }
+        val period = timeline.getPeriod(periodIndex, Timeline.Period())
+        Timber.tag(TAG).d(
+            "[VideoPlayback] timeline mediaId=$mediaId reason=$reason " +
+                "playerDuration=${diagnosticDurationMs(player.duration)} " +
+                "periodDuration=${diagnosticDurationUs(period.durationUs)} " +
+                "positionInWindow=${diagnosticDurationUs(period.positionInWindowUs)}",
+        )
+    }
+
+    private fun logVideoPlaybackTracks() {
+        val mediaId = player.currentMediaItem?.mediaId ?: return
+        if (!isCurrentMergedVideoPlayback(mediaId)) return
+        player.currentTracks.groups.forEach { group ->
+            val trackType = group.type
+            if (trackType != C.TRACK_TYPE_AUDIO && trackType != C.TRACK_TYPE_VIDEO) return@forEach
+            for (trackIndex in 0 until group.length) {
+                if (!group.isTrackSelected(trackIndex)) continue
+                val format = group.getTrackFormat(trackIndex)
+                val type = if (trackType == C.TRACK_TYPE_AUDIO) "audio" else "video"
+                Timber.tag(TAG).d(
+                    "[VideoPlayback] tracks mediaId=$mediaId type=$type " +
+                        "mime=${format.sampleMimeType} codecs=${format.codecs} " +
+                        "width=${format.width} height=${format.height} frameRate=${format.frameRate} " +
+                        "bitrate=${format.bitrate}",
+                )
+            }
+        }
+    }
+
+    private fun diagnosticDurationMs(durationMs: Long): String =
+        if (durationMs == C.TIME_UNSET) "TIME_UNSET" else "${durationMs}ms"
+
+    private fun diagnosticDurationUs(durationUs: Long): String =
+        if (durationUs == C.TIME_UNSET) "TIME_UNSET" else "${durationUs / 1_000L}ms"
+
+    private fun logAudioOnlyFallbackState(state: String) {
+        val mediaId = audioOnlyFallbackMediaId ?: return
+        if (player.currentMediaItem?.mediaId != mediaId) return
+        val startedAtMs = audioOnlyFallbackStartedAtMs ?: return
+        Timber.tag(TAG).i(
+            "[VideoPlayback] audio-only $state mediaId=$mediaId " +
+                "elapsedMs=${SystemClock.elapsedRealtime() - startedAtMs}",
+        )
+    }
+
+    /**
+     * One service-side eligibility gate for every video resolver and source route. It deliberately
+     * includes the legacy Apple Music background: that design owns its artwork/canvas layers and
+     * must retain the original audio-only (Opus-preferred) path.
+     */
+    private fun videoEligibilityBlockedReason(mediaItem: MediaItem?): String? = when {
+        !videoPlaybackEnabled -> "VIDEO_PLAYBACK_DISABLED"
+        playerV2Enabled -> "PLAYER_V2"
+        jioSaavnStreamingEnabled -> "JIOSAAVN"
+        playerBackgroundStyle == PlayerBackgroundStyle.APPLE_MUSIC -> "APPLE_MUSIC_BACKGROUND"
+        castConnectionHandler?.isCasting?.value == true -> "CAST"
+        mediaItem == null -> "NO_MEDIA_ITEM"
+        mediaItem.mediaId.isBlank() -> "EMPTY_MEDIA_ID"
+        isKnownAudioTrack(mediaItem) -> "AUDIO_TRACK"
+        mediaItem.mediaId in videoFallbackMediaIds -> "VIDEO_FALLBACK"
+        else -> null
+    }
+
+    private fun shouldAttemptVideoFor(mediaItem: MediaItem): Boolean =
+        videoEligibilityBlockedReason(mediaItem) == null
+
+    private fun logVideoEligibility(mediaItem: MediaItem?) {
+        val reason = videoEligibilityBlockedReason(mediaItem)
+        Timber.tag(TAG).i(
+            "[VideoPlayback][eligibility] mediaId=${mediaItem?.mediaId ?: "none"} " +
+                "settingEnabled=$videoPlaybackEnabled backgroundStyle=$playerBackgroundStyle " +
+                "eligible=${reason == null} blockedReason=${reason ?: "NONE"}",
+        )
+    }
+
+    /** Explicit response classification wins over stale queue metadata. */
+    private fun isKnownAudioTrack(mediaItem: MediaItem): Boolean =
+        mediaItem.metadata?.musicVideoType == MUSIC_VIDEO_TYPE_ATV ||
+            resolvedMusicVideoTypes[mediaItem.mediaId] == MUSIC_VIDEO_TYPE_ATV
+
+    /**
+     * Video uses an uncached resolving data source. It never changes the existing audio resolver,
+     * audio cache key, audio quality selection, or audio URL prefetch path.
+     */
+    private fun createVideoDataSourceFactory(): DataSource.Factory =
+        ResolvingDataSource.Factory(
+            DefaultDataSource.Factory(
+                this,
+                OkHttpDataSource.Factory(
+                    OkHttpClient.Builder()
+                        .proxy(YouTube.proxy)
+                        .build(),
+                ),
+        ).setTransferListener(videoTransferListener),
+        ) { dataSpec ->
+            val request = videoStreamRequest(dataSpec)
+                ?: throw IOException("Invalid video stream cache key")
+            val mediaId = request.mediaId
+
+            try {
+                Timber.tag(TAG).d(
+                    "[VideoPlayback] resolving stream mediaId=$mediaId " +
+                        "sourceInstance=${sourceInstanceLabel(request.sourceInstanceId)} " +
+                        "dataSpecPosition=${dataSpec.position} dataSpecLength=${dataSpec.length} " +
+                        "uriScheme=${dataSpec.uri.scheme ?: "none"}",
+                )
+                val playback = runBlocking(Dispatchers.IO) {
+                    YTPlayerUtils.playerResponseForPlayback(
+                        videoId = mediaId,
+                        audioQuality = audioQuality,
+                        connectivityManager = connectivityManager,
+                        context = this@MusicService,
+                        wantVideo = true,
+                    )
+                }.getOrElse { throw IOException("Unable to resolve 360p video stream", it) }
+
+                val video = playback?.takeUnless { it.isSaavnStream }?.video
+                    ?: throw IOException("No supported 360p video stream")
+                val responseMusicVideoType = playback?.videoDetails?.musicVideoType
+                videoDiagnosticsFor(request)?.let { diagnostics ->
+                    synchronized(diagnostics) {
+                        diagnostics.bitrate = video.bitrate
+                        diagnostics.contentLength = video.contentLength
+                        diagnostics.mimeType = video.mimeType
+                        diagnostics.codecs = video.codecs
+                        diagnostics.itag = video.itag
+                    }
+                }
+                Timber.tag(TAG).d(
+                    "[VideoPlayback] selected stream mediaId=$mediaId mime=${video.mimeType} " +
+                        "codec=${video.codecs ?: video.mimeType} width=${video.width} height=${video.height} " +
+                        "bitrate=${video.bitrate} contentLength=${video.contentLength} itag=${video.itag} " +
+                        "sourceInstance=${sourceInstanceLabel(request.sourceInstanceId)}",
+                )
+                scope.launch {
+                    // ResolvingDataSource runs on ProgressiveMediaPeriod's Loader thread. Keep all
+                    // Player reads and UI-facing state updates on the service's main coroutine.
+                    val currentMediaItem = player.currentMediaItem
+                    Timber.tag(TAG).d(
+                        "[VideoPlayback][metadata] mediaId=$mediaId " +
+                            "mediaItemMusicVideoType=${currentMediaItem?.metadata?.musicVideoType} " +
+                            "responseMusicVideoType=${responseMusicVideoType ?: "unknown"}",
+                    )
+                    if (currentMediaItem?.mediaId != mediaId) return@launch
+                    videoPlaybackRequestedMediaId.value = mediaId
+                    maybeArmVideoStallWatchdog("videoResolved")
+                    logVideoPlaybackTimeline("videoResolved")
+                }
+                dataSpec.withUri(video.streamUrl.toUri()).withRequestHeaders(video.headers)
+            } catch (error: IOException) {
+                markVideoLoadFailure(mediaId, error)
+                throw error
+            } catch (error: Exception) {
+                val ioError = IOException("Unable to resolve 360p video stream", error)
+                markVideoLoadFailure(mediaId, ioError)
+                throw ioError
+            }
+        }
 
     private fun createRenderersFactory(
         eqProcessor: CustomEqualizerAudioProcessor,
@@ -3511,6 +5315,12 @@ class MusicService :
 
     override fun onDestroy() {
         isRunning = false
+        cancelVideoStallWatchdog("service destroy")
+        resetVideoAutoRetry("service destroy")
+        dashRoutes.clear()
+        videoSourceUris.clear()
+        videoPlaybackRoutes.clear()
+        pendingCurrentVideoRouteActivation = null
 
         try {
             unregisterReceiver(screenStateReceiver)
@@ -3680,6 +5490,20 @@ class MusicService :
             try {
                 castConnectionHandler = CastConnectionHandler(this, scope, this)
                 castConnectionHandler?.initialize()
+                castConnectionHandler?.let { handler ->
+                    scope.launch {
+                        handler.isCasting.collect { isCasting ->
+                            if (isCasting) {
+                                cancelVideoStallWatchdog("Cast started")
+                                resetVideoAutoRetry("Cast started")
+                                rebuildCurrentAsAudioOnly(
+                                    reason = "Cast started",
+                                    permanentVideoFallback = false,
+                                )
+                            }
+                        }
+                    }
+                }
                 timber.log.Timber.d("Google Cast initialized")
             } catch (e: Exception) {
                 timber.log.Timber.e(e, "Failed to initialize Google Cast")
@@ -3694,6 +5518,10 @@ class MusicService :
         reason: Int
     ) {
         if (reason == Player.DISCONTINUITY_REASON_SEEK) {
+            cancelVideoStallWatchdog("seek")
+            if (player.playWhenReady && player.playbackState == Player.STATE_BUFFERING) {
+                maybeArmVideoStallWatchdog("seek")
+            }
             scheduleCrossfade()
         }
     }
@@ -3701,6 +5529,7 @@ class MusicService :
     private fun scheduleCrossfade() {
         crossfadeTriggerJob?.cancel()
         crossfadeTriggerJob = null
+        if (videoPlaybackRequestedMediaId.value == player.currentMediaItem?.mediaId) return
         if (!crossfadeEnabled || player.duration == C.TIME_UNSET || player.duration <= crossfadeDuration) return
         if (crossfadeGapless && isNextItemGapless()) return
         if (!player.hasNextMediaItem() && player.repeatMode != REPEAT_MODE_ONE) return
@@ -3814,6 +5643,7 @@ class MusicService :
      * normal instant-skip behavior.
      */
     fun manualSkipToNextWithCrossfade(): Boolean {
+        if (videoPlaybackRequestedMediaId.value == player.currentMediaItem?.mediaId) return false
         if (!crossfadeEnabled || !crossfadeManualSkipEnabled) return false
         if (isCrossfading) return false
         if (castConnectionHandler?.isCasting?.value == true) return false
@@ -3835,6 +5665,7 @@ class MusicService :
      * actually moves to the previous track, not the restart branch.
      */
     fun manualSkipToPreviousWithCrossfade(): Boolean {
+        if (videoPlaybackRequestedMediaId.value == player.currentMediaItem?.mediaId) return false
         if (!crossfadeEnabled || !crossfadeManualSkipEnabled) return false
         if (isCrossfading) return false
         if (castConnectionHandler?.isCasting?.value == true) return false

@@ -74,6 +74,7 @@ import com.music.vivi.constants.SimilarContent
 import com.music.vivi.constants.SkipSilenceInstantKey
 import com.music.vivi.constants.SkipSilenceKey
 import com.music.vivi.constants.StopMusicOnTaskClearKey
+import com.music.vivi.constants.VideoPlaybackKey
 import com.music.vivi.ui.component.ActionPromptDialog
 import com.music.vivi.ui.component.CrossfadeCurvePreview
 import com.music.vivi.ui.component.DefaultDialog
@@ -115,6 +116,10 @@ fun PlayerSettings(
     val (crossfadeManualSkip, onCrossfadeManualSkipChange) = rememberPreference(
         CrossfadeManualSkipKey,
         defaultValue = false
+    )
+    val (videoPlayback, onVideoPlaybackChange) = rememberPreference(
+        VideoPlaybackKey,
+        defaultValue = false,
     )
     val (persistentQueue, onPersistentQueueChange) = rememberPreference(
         PersistentQueueKey,
@@ -373,6 +378,25 @@ fun PlayerSettings(
                         Text(summary)
                     },
                     onClick = { navController.navigate("settings/player/canvas") }
+                ))
+                add(Material3SettingsItem(
+                    icon = painterResource(R.drawable.stream_old_player),
+                    title = { Text("Video playback") },
+                    description = { Text("Play 360p video when available. Apple Music v17, Cast, and JioSaavn remain audio-only.") },
+                    trailingContent = {
+                        Switch(
+                            checked = videoPlayback,
+                            onCheckedChange = onVideoPlaybackChange,
+                            thumbContent = {
+                                Icon(
+                                    painter = painterResource(if (videoPlayback) R.drawable.check else R.drawable.close),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(SwitchDefaults.IconSize),
+                                )
+                            },
+                        )
+                    },
+                    onClick = { onVideoPlaybackChange(!videoPlayback) },
                 ))
                 add(Material3SettingsItem(
                     icon = painterResource(R.drawable.linear_scale),

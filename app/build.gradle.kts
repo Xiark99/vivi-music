@@ -131,6 +131,13 @@ buildTypes {
         applicationIdSuffix = ".custom"
         matchingFallbacks += listOf("release")
     }
+    create("videoTestRelease") {
+        initWith(getByName("release"))
+        // Kept separate from customRelease so a video test APK can be installed alongside it.
+        applicationIdSuffix = ".custom.videotest"
+        versionNameSuffix = "-video-test"
+        matchingFallbacks += listOf("release")
+    }
     debug {
         applicationIdSuffix = ".debug"
         isDebuggable = true
@@ -190,6 +197,17 @@ buildTypes {
             excludes += "META-INF/LICENSE.md"
             excludes += "META-INF/INDEX.LIST"
             excludes += "META-INF/io.netty.versions.properties"
+        }
+    }
+}
+
+androidComponents {
+    // Video Test is intentionally FOSS-only; do not create redundant GMS variants.
+    beforeVariants { variantBuilder ->
+        if (variantBuilder.buildType == "videoTestRelease" &&
+            variantBuilder.productFlavors.any { (_, flavor) -> flavor == "gms" }
+        ) {
+            variantBuilder.enable = false
         }
     }
 }
@@ -266,6 +284,7 @@ dependencies {
     implementation(libs.media3)
     implementation(libs.media3.session)
     implementation(libs.media3.hls)
+    implementation(libs.media3.dash)
     implementation(libs.media3.ui)
     implementation(libs.media3.okhttp)
 

@@ -128,6 +128,7 @@ object YTPlayerUtils {
         connectivityManager: ConnectivityManager,
         context: android.content.Context? = null,
         contentHints: ContentHints = ContentHints(),
+        wantVideo: Boolean = false,
     ): Result<InnerTubeXPlayer.PlaybackData> {
         // ── JioSaavn intercept ───────────────────────────────────────────────
         // If the user has enabled JioSaavn streaming, try to resolve the stream
@@ -346,13 +347,13 @@ object YTPlayerUtils {
         }
         // ── End JioSaavn intercept ───────────────────────────────────────────
 
-        val firstAttempt = resolvePlaybackData(videoId, playlistId, audioQuality, connectivityManager, contentHints)
+        val firstAttempt = resolvePlaybackData(videoId, playlistId, audioQuality, connectivityManager, contentHints, wantVideo)
         
         if (firstAttempt.isFailure && YouTube.cookie == null) {
             Timber.tag(TAG).w("Playback failed for guest. Rotating session and retrying...")
             PlaybackLogManager.log(PlaybackLogLevel.BOT, "Playback failed for guest", "Triggering bot detection mitigation (rotating guest session)")
             BotDetectionMitigator.rotateGuestSession()
-            val retryResult = resolvePlaybackData(videoId, playlistId, audioQuality, connectivityManager, contentHints)
+            val retryResult = resolvePlaybackData(videoId, playlistId, audioQuality, connectivityManager, contentHints, wantVideo)
             retryResult.onSuccess { BotDetectionMitigator.notifyPlaybackSuccess() }
             return retryResult
         }
@@ -367,6 +368,7 @@ object YTPlayerUtils {
         audioQuality: AudioQuality,
         connectivityManager: ConnectivityManager,
         contentHints: ContentHints = ContentHints(),
+        wantVideo: Boolean = false,
     ): Result<InnerTubeXPlayer.PlaybackData> {
         Timber.tag(logTag).d("Fetching player response for videoId: ${videoId} via InnerTubeX")
         PlaybackLogManager.log(PlaybackLogLevel.INFO, "Resolving playback data", "Video: ${videoId}")
@@ -384,7 +386,8 @@ object YTPlayerUtils {
             audioQuality = audioQuality,
             connectivityManager = connectivityManager,
             contentHints = mappedHints,
-            allowBoundedRange = true
+            allowBoundedRange = true,
+            wantVideo = wantVideo,
         )
     }
 

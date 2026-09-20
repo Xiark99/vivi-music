@@ -110,6 +110,8 @@ import com.music.vivi.constants.CanvasLoadOnlyWifiKey
 import com.music.vivi.constants.CanvasSource
 import com.music.vivi.constants.CanvasSourceKey
 import com.music.vivi.constants.CanvasThumbnailAnimationKey
+import com.music.vivi.constants.UsePlayerV2Key
+import com.music.vivi.constants.VideoPlaybackKey
 import com.music.vivi.canvas.TidalCanvasProvider
 import com.music.vivi.canvas.CanvasArtwork
 import com.music.vivi.canvas.normalizeForComparison
@@ -649,6 +651,14 @@ private fun ThumbnailItem(
 
     val canvasThumbnailAnimation by rememberPreference(CanvasThumbnailAnimationKey, defaultValue = true)
     val canvasLoadOnlyWifi by rememberPreference(CanvasLoadOnlyWifiKey, defaultValue = false)
+    val videoPlaybackEnabled by rememberPreference(VideoPlaybackKey, defaultValue = false)
+    val usePlayerV2 by rememberPreference(UsePlayerV2Key, defaultValue = false)
+    val videoRequestedMediaId by playerConnection.videoPlaybackRequestedMediaId.collectAsState()
+    val videoActiveMediaId by playerConnection.videoPlaybackActiveMediaId.collectAsState()
+    val videoSurfaceRequested = videoPlaybackEnabled && !usePlayerV2 &&
+        playerBackground != PlayerBackgroundStyle.APPLE_MUSIC && !rotatingThumbnail &&
+        item.mediaId == currentMediaId && videoRequestedMediaId == item.mediaId
+    val videoFirstFrameReady = videoSurfaceRequested && videoActiveMediaId == item.mediaId
 
     Box(
         modifier = modifier
@@ -742,22 +752,35 @@ private fun ThumbnailItem(
                         rotationZ = -rotation
                     }
             ) {
-                if (hidePlayerThumbnail) {
-                    HiddenThumbnailPlaceholder(textBackgroundColor = textBackgroundColor)
-                } else {
-                    val artworkUriToUse = if (item.mediaId == currentMediaId && !currentMediaThumbnail.isNullOrBlank()) {
-                        currentMediaThumbnail
+                // The primary surface must attach before its first frame, but it is transparent
+                // until then. Once that frame arrives, this slot contains only video; artwork and
+                // canvas are not left beneath it as an overlay background.
+                if (!videoFirstFrameReady) {
+                    if (hidePlayerThumbnail) {
+                        HiddenThumbnailPlaceholder(textBackgroundColor = textBackgroundColor)
                     } else {
-                        item.mediaMetadata.artworkUri?.toString()
-                    }
+                        val artworkUriToUse = if (item.mediaId == currentMediaId && !currentMediaThumbnail.isNullOrBlank()) {
+                            currentMediaThumbnail
+                        } else {
+                            item.mediaMetadata.artworkUri?.toString()
+                        }
 
-                    ThumbnailImage(
-                        artworkUri = artworkUriToUse?.resize(1200, 1200),
-                        cropArtwork = cropAlbumArt
+                        ThumbnailImage(
+                            artworkUri = artworkUriToUse?.resize(1200, 1200),
+                            cropArtwork = cropAlbumArt
+                        )
+                    }
+                }
+
+                if (videoSurfaceRequested) {
+                    MainPlaybackVideoSurface(
+                        player = playerConnection.player,
+                        visible = videoFirstFrameReady,
+                        modifier = Modifier.fillMaxSize(),
                     )
                 }
 
-                if (canvasThumbnailAnimation && item.mediaId == currentMediaId && !rotatingThumbnail && playerBackground != PlayerBackgroundStyle.APPLE_MUSIC && (!canvasLoadOnlyWifi || isWifiConnected(context))) {
+                if (canvasThumbnailAnimation && !videoFirstFrameReady && item.mediaId == currentMediaId && !rotatingThumbnail && playerBackground != PlayerBackgroundStyle.APPLE_MUSIC && (!canvasLoadOnlyWifi || isWifiConnected(context))) {
                 val (canvasSource) = rememberEnumPreference(CanvasSourceKey, defaultValue = CanvasSource.AUTO)
                 val albumTitle = item.mediaMetadata.albumTitle?.toString()
                 var canvasArtwork by remember(item.mediaId, albumTitle) { mutableStateOf<CanvasArtwork?>(null) }
@@ -876,7 +899,9 @@ private fun ThumbnailItem(
                     canvasFetchInFlight = false
                 }
 
-                canvasArtwork?.let { artwork ->
+                // A canvas is a separate, muted player and must not cover the main player's
+                // synchronized YouTube video surface.
+                canvasArtwork?.takeIf { videoRequestedMediaId != item.mediaId }?.let { artwork ->
                     CanvasArtworkPlayer(
                         primaryUrl = artwork.animated,
                         fallbackUrl = artwork.videoUrl,
