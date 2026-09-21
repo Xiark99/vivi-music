@@ -3278,6 +3278,18 @@ class MusicService :
 
         val mediaId = player.currentMediaItem?.mediaId
         Timber.tag(TAG).w(error, "Player error occurred for $mediaId: errorCode=${error.errorCode}, message=${error.message}")
+        if (error.errorCode == PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED) {
+            val item = player.currentMediaItem
+            val instance = mediaId?.let(videoSourceInstanceIds::get)
+            val causes = buildList {
+                var cause: Throwable? = error
+                while (cause != null) {
+                    add("${cause.javaClass.simpleName}:${cause.message?.take(120)}")
+                    cause = cause.cause
+                }
+            }.joinToString(" <- ")
+            Timber.tag(TAG).w("[Playback3002Diag] mediaId=$mediaId index=${player.currentMediaItemIndex} position=${player.currentPosition} uriScheme=${item?.localConfiguration?.uri?.scheme ?: "none"} route=${mediaId?.let(videoPlaybackRoutes::get) ?: "none"} sourceInstance=$instance dashRoutePresent=${instance?.let(dashRoutes::containsKey) ?: false} videoSource=${mediaId?.let(videoSourceMediaIds::contains) ?: false} fallback=${mediaId?.let(videoFallbackMediaIds::contains) ?: false} requested=${videoPlaybackRequestedMediaId.value} active=${videoPlaybackActiveMediaId.value} causes=$causes")
+        }
 
         // Keep automatic-retry diagnostics complete without broadening the video-failure
         // classification below. A player error remains eligible for fallback only through
@@ -3792,9 +3804,20 @@ class MusicService :
         }
     }
 
-    private fun createDataSourceFactory(): DataSource.Factory {
+    private fun createDataSourceFactory(fallbackMediaId: String? = null): DataSource.Factory {
         return ResolvingDataSource.Factory(createCacheDataSource()) { dataSpec ->
-            val mediaId = dataSpec.key ?: error("No media id")
+            // Media3 normally propagates localConfiguration.customCacheKey as DataSpec.key. A
+            // URI-distinct fallback source can lose that key while its replacement is prepared;
+            // only that source is allowed to use the MediaItem identity captured at construction.
+            val mediaId = dataSpec.key ?: fallbackMediaId?.takeIf { dataSpec.uri.scheme == "fallback" }
+                ?: throw IOException("Missing media id for audio data source")
+            if (dataSpec.key == null) {
+                Timber.tag(TAG).w(
+                    "[PlaybackDiag][audio][fallback] keyMissing=true mediaId=$mediaId " +
+                        "uriScheme=${dataSpec.uri.scheme ?: "none"} position=${dataSpec.position} " +
+                        "length=${dataSpec.length}",
+                )
+            }
 
             // Check if we need to bypass cache for quality change
             val shouldBypassCache = bypassCacheForQualityChange.contains(mediaId)
@@ -4264,19 +4287,50 @@ class MusicService :
                 Mp4Extractor(),             // regular .mp4 / AAC (JioSaavn)
             )
         }
-        val audioFactory = DefaultMediaSourceFactory(createDataSourceFactory(), extractorsFactory)
         val videoFactory = DefaultMediaSourceFactory(createVideoDataSourceFactory(), extractorsFactory)
+        var audioDrmSessionManagerProvider: DrmSessionManagerProvider? = null
+        var audioLoadErrorHandlingPolicy: LoadErrorHandlingPolicy? = null
 
         return object : MediaSource.Factory {
             override fun createMediaSource(mediaItem: MediaItem): MediaSource {
-                val audioSource = audioFactory.createMediaSource(mediaItem)
+                val isFallbackSource = mediaItem.localConfiguration?.uri?.scheme == "fallback"
+                // Bind this source's identity so only a fallback: replacement can recover a key
+                // dropped by Media3 during a seek/reopen. Normal audio still requires DataSpec.key.
+                val audioFactory = DefaultMediaSourceFactory(
+                    createDataSourceFactory(mediaItem.mediaId),
+                    extractorsFactory,
+                ).also { factory ->
+                    audioDrmSessionManagerProvider?.let(factory::setDrmSessionManagerProvider)
+                    audioLoadErrorHandlingPolicy?.let(factory::setLoadErrorHandlingPolicy)
+                }
+                // A fallback URI is resolved to the normal audio stream by createDataSourceFactory.
+                // Do not let any DASH local configuration inherited during a video replacement
+                // influence source selection for that resolved WebM/Opus stream.
+                val audioSource = if (isFallbackSource) {
+                    androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(
+                        createDataSourceFactory(mediaItem.mediaId),
+                        extractorsFactory,
+                    ).also { factory ->
+                        audioDrmSessionManagerProvider?.let(factory::setDrmSessionManagerProvider)
+                        audioLoadErrorHandlingPolicy?.let(factory::setLoadErrorHandlingPolicy)
+                    }.createMediaSource(mediaItem)
+                } else {
+                    audioFactory.createMediaSource(mediaItem)
+                }
                 val sourceInstanceId = playbackSourceInstanceSequence.incrementAndGet()
                 val shouldMergeVideo = allowVideo && shouldAttemptVideoFor(mediaItem)
-                val isFallbackSource = mediaItem.mediaId == audioOnlyFallbackMediaId
                 val sourceLabel = when {
                     shouldMergeVideo -> "merged#$sourceInstanceId"
                     isFallbackSource -> "fallback#$sourceInstanceId"
                     else -> "audio#$sourceInstanceId"
+                }
+                if (isFallbackSource) {
+                    Timber.tag(TAG).i(
+                        "[PlaybackDiag][audio][fallback] source created mediaId=${mediaItem.mediaId} " +
+                            "uriScheme=${mediaItem.localConfiguration?.uri?.scheme ?: "none"} " +
+                            "mimeType=${mediaItem.localConfiguration?.mimeType ?: "none"} " +
+                            "mediaSourceType=Progressive position=${safeCurrentPlaybackPosition()}",
+                    )
                 }
                 if (allowVideo && !shouldMergeVideo && isKnownAudioTrack(mediaItem)) {
                     Timber.tag(TAG).i(
@@ -4430,18 +4484,18 @@ class MusicService :
             }
 
             override fun setDrmSessionManagerProvider(provider: DrmSessionManagerProvider): MediaSource.Factory {
-                audioFactory.setDrmSessionManagerProvider(provider)
+                audioDrmSessionManagerProvider = provider
                 videoFactory.setDrmSessionManagerProvider(provider)
                 return this
             }
 
             override fun setLoadErrorHandlingPolicy(policy: LoadErrorHandlingPolicy): MediaSource.Factory {
-                audioFactory.setLoadErrorHandlingPolicy(policy)
+                audioLoadErrorHandlingPolicy = policy
                 videoFactory.setLoadErrorHandlingPolicy(policy)
                 return this
             }
 
-            override fun getSupportedTypes(): IntArray = audioFactory.supportedTypes
+            override fun getSupportedTypes(): IntArray = videoFactory.supportedTypes
         }
     }
 
@@ -4505,8 +4559,12 @@ class MusicService :
             // ProgressiveMediaSource can update an equal MediaItem in-place, which would leave the
             // old MergingMediaSource alive. A fallback-only URI forces replaceMediaItem to create
             // and release the current source while preserving its mediaId, metadata, cache key and queue.
+            // Clear source-selection fields inherited from sideloaded DASH so the fallback is
+            // always resolved as the normal progressive audio stream.
             val audioOnlyItem = item.buildUpon()
                 .setUri("fallback:$mediaId")
+                .setMimeType(null)
+                .setStreamKeys(emptyList())
                 .setCustomCacheKey(mediaId)
                 .build()
             Timber.tag(TAG).d("[VideoPlayback] replacing current source with audio-only mediaId=$mediaId")
