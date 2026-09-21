@@ -6,7 +6,6 @@
 package com.music.vivi.ui.screens.settings
 
 import com.music.vivi.R
-import android.os.Build
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -25,15 +24,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -45,10 +37,6 @@ import com.music.vivi.ui.component.ExpressiveSettingGroup
 import com.music.vivi.ui.component.Material3SettingsItem
 import com.music.vivi.ui.screens.Screens
 import com.music.vivi.ui.utils.backToMain
-import com.music.vivi.vivimusic.updater.getUpdateAvailableState
-import com.music.vivi.vivimusic.updater.getAutoUpdateCheckSetting
-import com.music.vivi.vivimusic.updater.checkForUpdate
-import com.music.vivi.vivimusic.updater.saveUpdateAvailableState
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -57,38 +45,6 @@ fun SettingsScreen(
     navController: NavController,
     scrollBehavior: TopAppBarScrollBehavior,
 ) {
-    val context = LocalContext.current
-    val isAndroid12OrLater = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-
-    val autoUpdateSetting = remember { getAutoUpdateCheckSetting(context) }
-    var isUpdateAvailable by remember { mutableStateOf(getUpdateAvailableState(context)) }
-
-    DisposableEffect(context) {
-        val sharedPrefs = context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
-        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-            if (key == "update_available") {
-                isUpdateAvailable = getUpdateAvailableState(context)
-            }
-        }
-        sharedPrefs.registerOnSharedPreferenceChangeListener(listener)
-        isUpdateAvailable = getUpdateAvailableState(context)
-        onDispose {
-            sharedPrefs.unregisterOnSharedPreferenceChangeListener(listener)
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        if (autoUpdateSetting) {
-            checkForUpdate(
-                context = context,
-                onSuccess = { _, isAvailable, _, _, _, _, _, _ ->
-                    saveUpdateAvailableState(context, isAvailable)
-                },
-                onError = {}
-            )
-        }
-    }
-
     Column(
         Modifier
             .windowInsetsPadding(LocalPlayerAwareWindowInsets.current)
@@ -105,39 +61,7 @@ fun SettingsScreen(
             modifier = Modifier.padding(start = 8.dp, top = 16.dp, bottom = 8.dp)
         )
 
-        // Group 1: Important / Account
-        ExpressiveSettingGroup(
-            itemMinHeight = 64.dp,
-            items = buildList {
-                add(
-                    Material3SettingsItem(
-                        icon = painterResource(if (isUpdateAvailable) R.drawable.update_alert else R.drawable.system_update_uptodate),
-                        title = { Text(stringResource(R.string.system_update)) },
-                        description = {
-                            if (isUpdateAvailable) {
-                                Text(
-                                    text = stringResource(R.string.update_available),
-                                    color = MaterialTheme.colorScheme.error
-                                )
-                            } else {
-                                Text(stringResource(R.string.app_update_uptodate))
-                            }
-                        },
-                        onClick = { navController.navigate("settings/update") }
-                    )
-                )
-                add(
-                    Material3SettingsItem(
-                        icon = painterResource(R.drawable.google),
-                        title = { Text(stringResource(R.string.account)) },
-                        description = { Text(stringResource(R.string.setting_account_desc)) },
-                        onClick = { navController.navigate("settings/account") }
-                    )
-                )
-            }
-        )
-
-        // Group 2: Media & Player Experience
+        // Group 1: Media & Player Experience
         ExpressiveSettingGroup(
             itemMinHeight = 64.dp,
             items = buildList {
@@ -176,7 +100,7 @@ fun SettingsScreen(
             }
         )
 
-        // Group 3: Features & Data
+        // Group 2: Features & Data
         ExpressiveSettingGroup(
             itemMinHeight = 64.dp,
             items = buildList {
@@ -215,24 +139,24 @@ fun SettingsScreen(
             }
         )
 
-        // Group 4: System & Support
+        // Group 3: Account & Backup
         ExpressiveSettingGroup(
             itemMinHeight = 64.dp,
             items = buildList {
+                add(
+                    Material3SettingsItem(
+                        icon = painterResource(R.drawable.google),
+                        title = { Text(stringResource(R.string.account)) },
+                        description = { Text(stringResource(R.string.setting_account_desc)) },
+                        onClick = { navController.navigate("settings/account") }
+                    )
+                )
                 add(
                     Material3SettingsItem(
                         icon = painterResource(R.drawable.restore),
                         title = { Text(stringResource(R.string.backup_restore)) },
                         description = { Text(stringResource(R.string.setting_backup_restore_desc)) },
                         onClick = { navController.navigate("settings/backup_restore") }
-                    )
-                )
-                add(
-                    Material3SettingsItem(
-                        icon = painterResource(R.drawable.info),
-                        title = { Text(stringResource(R.string.about)) },
-                        description = { Text(stringResource(R.string.setting_about_desc)) },
-                        onClick = { navController.navigate("settings/about") }
                     )
                 )
             }

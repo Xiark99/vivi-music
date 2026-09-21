@@ -428,12 +428,13 @@
     <string name="enable_automatic_backup">Enable Automatic Backup</string>
     <string name="weekly_backup">Weekly backup</string>
     <string name="weekly_backup_desc">Automatically backup your data every week in the background.</string>
-    <string name="backup_before_update">Backup before update</string>
-    <string name="backup_before_update_desc">Automatically backup your data before downloading an app update.</string>
+    <string name="backup_location">Backup location</string>
+    <string name="backup_location_default">Default location</string>
+    <string name="backup_location_unavailable">Folder unavailable</string>
+    <string name="use_default_location">Use default location</string>
     <string name="stored_backups">Stored backups</string>
     <string name="no_stored_backups">No automatic backups stored yet.</string>
     <string name="backup_type_weekly">Weekly Backup</string>
-    <string name="backup_type_before_update">Before Update</string>
     <string name="delete_backup_confirm">Are you sure you want to delete this backup?</string>
     <string name="restore_backup_confirm">Are you sure you want to restore this backup? The app will close and restart to apply changes.</string>
     <string name="backup_deleted">Backup deleted successfully</string>
@@ -462,4 +463,5 @@
     <string name="setting_listening_summary_desc">View your daily listening trends and historical playback analytics.</string>
     <string name="ai_additional_prompt">Additional prompt</string>
     <string name="ai_additional_prompt_hint">Optional instructions appended to the existing lyrics prompt. Leave blank to use the default translation.</string>
+    <string name="backup_type_before_update">Before Update</string>
 </resources>

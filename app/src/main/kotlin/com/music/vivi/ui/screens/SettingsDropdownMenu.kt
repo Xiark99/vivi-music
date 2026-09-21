@@ -1,7 +1,6 @@
 package com.music.vivi.ui.screens
 
 import android.content.Intent
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -44,7 +43,6 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
 import com.music.vivi.utils.listItemShape
 import com.music.vivi.viewmodels.HomeViewModel
-import com.music.vivi.vivimusic.updater.getUpdateAvailableState
 import kotlinx.coroutines.flow.map
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -59,7 +57,6 @@ fun SettingsDropdownMenu(
     val uriHandler = LocalUriHandler.current
     val context = LocalContext.current
     
-    var isUpdateAvailable by remember { mutableStateOf(getUpdateAvailableState(context)) }
     val (innerTubeCookie, _) = rememberPreference(InnerTubeCookieKey, "")
     val isLoggedIn = remember(innerTubeCookie) {
         innerTubeCookie.isNotEmpty() && "SAPISID" in parseCookieString(innerTubeCookie)
@@ -68,7 +65,6 @@ fun SettingsDropdownMenu(
     val isStarred by gitHubViewModel.isStarred.collectAsState()
     LaunchedEffect(expanded) {
         if (expanded) {
-            isUpdateAvailable = getUpdateAvailableState(context)
             gitHubViewModel.checkStarStatus(context)
         }
     }
@@ -119,23 +115,6 @@ fun SettingsDropdownMenu(
                     painter = painterResource(if (isStarred) R.drawable.star else R.drawable.star_border), 
                     contentDescription = "Star Repo",
                     tint = if (isStarred) Color(0xFFFFD700) else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            IconButton(
-                onClick = { 
-                    onDismissRequest()
-                    onNavigate("settings/update")
-                }, 
-                modifier = iconButtonModifier,
-                colors = IconButtonDefaults.iconButtonColors(
-                    containerColor = if (isUpdateAvailable) MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                ),
-                shapes = IconButtonDefaults.shapes()
-            ) {
-                Icon(
-                    painter = painterResource(if (isUpdateAvailable) R.drawable.update_alert else R.drawable.system_update_uptodate),
-                    contentDescription = "Update",
-                    tint = if (isUpdateAvailable) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             IconButton(
@@ -275,7 +254,7 @@ fun SettingsDropdownMenu(
 
         Spacer(modifier = Modifier.height(6.dp))
 
-        // --- Section 3: Settings & About ---
+        // --- Section 3: Settings ---
         DropdownMenuIconItem(
             title = stringResource(R.string.settings),
             icon = R.drawable.settings,
@@ -286,37 +265,6 @@ fun SettingsDropdownMenu(
                 onNavigate("settings")
             }
         )
-        Surface(
-            shape = listItemShape(1, 2, 16.dp),
-            color = itemContainerColor,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 1.dp)
-        ) {
-            DropdownMenuItem(
-                text = {
-                    Text(
-                        text = stringResource(R.string.about),
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                },
-                leadingIcon = {
-                    Image(
-                        painter = painterResource(id = R.drawable.icon),
-                        contentDescription = null,
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clip(CircleShape),
-                        contentScale = ContentScale.Crop
-                    )
-                },
-                onClick = {
-                    onDismissRequest()
-                    onNavigate("settings/about")
-                },
-                modifier = Modifier.height(48.dp)
-            )
-        }
     }
 }
 

@@ -60,10 +60,6 @@ import com.music.vivi.ui.component.Material3SettingsItem
 import com.music.vivi.ui.component.ModernSwitch
 import com.music.vivi.ui.utils.backToMain
 import com.music.vivi.utils.rememberPreference
-import com.music.vivi.vivimusic.updater.getUpdateNotificationsSetting
-import com.music.vivi.vivimusic.updater.saveUpdateNotificationsSetting
-import com.music.vivi.vivimusic.updater.getDownloadNotificationsSetting
-import com.music.vivi.vivimusic.updater.saveDownloadNotificationsSetting
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -110,14 +106,6 @@ fun NotificationPermission(
     // Combined state for checked switch
     val isNotificationsActive = hasSystemPermission && notificationsEnabled
 
-    var updateNotificationsEnabled by remember {
-        mutableStateOf(getUpdateNotificationsSetting(context))
-    }
-
-    var downloadNotificationsEnabled by remember {
-        mutableStateOf(getDownloadNotificationsSetting(context))
-    }
-
     val (newReleaseNotificationsEnabled, onNewReleaseNotificationsChange) = rememberPreference(
         NewReleaseNotificationsKey,
         defaultValue = true
@@ -127,24 +115,6 @@ fun NotificationPermission(
         TasteBasedReleaseNotificationsKey,
         defaultValue = false
     )
-
-    DisposableEffect(context) {
-        val sharedPrefs = context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
-        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-            if (key == "update_notifications") {
-                updateNotificationsEnabled = getUpdateNotificationsSetting(context)
-            } else if (key == "download_notifications") {
-                downloadNotificationsEnabled = getDownloadNotificationsSetting(context)
-            }
-        }
-        sharedPrefs.registerOnSharedPreferenceChangeListener(listener)
-        // Sync initial state
-        updateNotificationsEnabled = getUpdateNotificationsSetting(context)
-        downloadNotificationsEnabled = getDownloadNotificationsSetting(context)
-        onDispose {
-            sharedPrefs.unregisterOnSharedPreferenceChangeListener(listener)
-        }
-    }
 
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
@@ -227,43 +197,9 @@ fun NotificationPermission(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Checkbox settings group for updates and download notifications
+        // Checkbox settings group for music release notifications
         ExpressiveSettingGroup(
             items = listOf(
-                Material3SettingsItem(
-                    title = { Text(stringResource(R.string.update_notifications)) },
-                    description = { Text(stringResource(R.string.update_notifications_subtitle)) },
-                    trailingContent = {
-                        Checkbox(
-                            checked = updateNotificationsEnabled,
-                            onCheckedChange = null,
-                            enabled = isNotificationsActive
-                        )
-                    },
-                    enabled = isNotificationsActive,
-                    onClick = {
-                        val newValue = !updateNotificationsEnabled
-                        updateNotificationsEnabled = newValue
-                        saveUpdateNotificationsSetting(context, newValue)
-                    }
-                ),
-                Material3SettingsItem(
-                    title = { Text(stringResource(R.string.download_notifications)) },
-                    description = { Text(stringResource(R.string.download_notifications_desc)) },
-                    trailingContent = {
-                        Checkbox(
-                            checked = downloadNotificationsEnabled,
-                            onCheckedChange = null,
-                            enabled = isNotificationsActive
-                        )
-                    },
-                    enabled = isNotificationsActive,
-                    onClick = {
-                        val newValue = !downloadNotificationsEnabled
-                        downloadNotificationsEnabled = newValue
-                        saveDownloadNotificationsSetting(context, newValue)
-                    }
-                ),
                 Material3SettingsItem(
                     title = { Text(stringResource(R.string.new_release_notifications)) },
                     description = { Text(stringResource(R.string.new_release_notifications_subtitle)) },

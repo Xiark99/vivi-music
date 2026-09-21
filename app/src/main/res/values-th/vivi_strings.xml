@@ -248,12 +248,6 @@
     <string name="settings_section_player_content">เครื่องเล่นและเนื้อหา</string>
     <string name="settings_section_storage">พื้นที่จัดเก็บและข้อมูล</string>
     <string name="settings_section_system">ระบบและเกี่ยวกับแอป</string>
-    <string name="updater">ตัวอัปเดต</string>
-    <string name="check_for_updates">ตรวจสอบการอัปเดตอัตโนมัติ</string>
-    <string name="update_notifications">เปิดการแจ้งเตือนการอัปเดต</string>
-    <string name="update_available_title">มีการอัปเดตใหม่</string>
-    <string name="update_channel_name">การอัปเดตแอป</string>
-    <string name="update_channel_desc">การแจ้งเตือนเกี่ยวกับเวอร์ชันใหม่</string>
     <string name="audio_offload">เปิดใช้งาน Audio Offload</string>
     <string name="audio_offload_description">ใช้เส้นทางเสียงแบบ offload สำหรับการเล่นเสียง การปิดใช้งานอาจทำให้ใช้พลังงานเพิ่มขึ้น แต่สามารถช่วยแก้ปัญหาการเล่นเสียงหรือการประมวลผลเสียงเพิ่มเติมได้</string>
     <string name="audio_offload_disabled_by_crossfade">ปิดใช้งานเนื่องจากเปิดครอสเฟดอยู่</string>

@@ -315,12 +315,6 @@
     <string name="settings_section_storage">Depolama ve Veri</string>
     <string name="settings_section_system">Sistem ve Hakkında</string>
 
-    <!-- Updater -->
-    <string name="updater">Güncelleyici</string>
-    <string name="check_for_updates">Güncellemeleri otomatik olarak kontrol et</string>
-    <string name="update_available_title">Güncelleme mevcut</string>
-    <string name="update_channel_name">Uygulama güncellemeleri</string>
-    <string name="update_channel_desc">Yeni sürümlerle ilgili bildirimler</string>
 
     <!-- Offload -->
     <string name="audio_offload">Offload\'u etkinleştir</string>
@@ -788,4 +782,9 @@
     <string name="commits">Commit\'ler</string>
     <string name="view_commit_history">Ana daldaki son değişikliklere göz atın</string>
 
+    <string name="vivi_music_title">VIVI MUSIC</string>
+    <string name="app_developer">Uygulama Geliştiricisi</string>
+    <string name="developer_name">VIVIDH P ASHOKAN</string>
+    <string name="website">Web sitesi</string>
+    <string name="installed_date_title">Kurulum Tarihi</string>
 </resources>

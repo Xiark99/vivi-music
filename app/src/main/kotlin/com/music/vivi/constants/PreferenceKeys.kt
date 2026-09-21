@@ -84,7 +84,6 @@ val PauseOnMute = booleanPreferencesKey("pauseOnMute")
 val ResumeOnBluetoothConnectKey = booleanPreferencesKey("resumeOnBluetoothConnect")
 val KeepScreenOn = booleanPreferencesKey("keepScreenOn")
 val DeveloperModeKey = booleanPreferencesKey("developerMode")
-val EnableSettingsPopupKey = booleanPreferencesKey("enableSettingsPopup")
 val HasStarredRepoKey = booleanPreferencesKey("hasStarredRepo")
 val LastSeenStarPromptVersionKey = stringPreferencesKey("lastSeenStarPromptVersion")
 
@@ -104,6 +103,7 @@ val EnableKugouKey = booleanPreferencesKey("enableKugou")
 val EnableLrcLibKey = booleanPreferencesKey("enableLrclib")
 val EnableBetterLyricsKey = booleanPreferencesKey("enableBetterLyrics")
 val EnableMusixmatchKey = booleanPreferencesKey("enableMusixmatch")
+val EnableSimpMusicKey = booleanPreferencesKey("enableSimpMusic")
 
 val EnableYouLyPlusKey = booleanPreferencesKey("enableYouLyPlus")
 val EnablePaxsenixKey = booleanPreferencesKey("enablePaxsenix")
@@ -165,7 +165,7 @@ val TasteBasedReleaseNotificationsKey = booleanPreferencesKey("tasteBasedRelease
 
 val AutoBackupEnabledKey = booleanPreferencesKey("autoBackupEnabled")
 val AutoBackupWeeklyKey = booleanPreferencesKey("autoBackupWeekly")
-val AutoBackupBeforeUpdateKey = booleanPreferencesKey("autoBackupBeforeUpdate")
+val AutoBackupLocationKey = stringPreferencesKey("autoBackupLocation")
 
 enum class SaavnAudioQuality {
     QUALITY_320,
@@ -487,6 +487,7 @@ enum class PreferredLyricsProvider {
     KUGOU,
     BETTER_LYRICS,
     MUSIXMATCH,
+    SIMPMUSIC,
     YOULYPLUS,
     PAXSENIX,
     UNISON,

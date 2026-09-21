@@ -221,12 +221,6 @@
     <string name="discord_use_details">Dùng chi tiết thay vì trạng thái</string>
     <string name="discord_use_details_description">Hiện tên bài hát chính thay vì tên nghệ sĩ</string>
     <string name="lyrics_romanize_chinese">Lời Romanize Chinese</string>
-    <string name="updater">Trình cập nhật</string>
-    <string name="check_for_updates">Tự động kiểm tra cập nhật</string>
-    <string name="update_notifications">Bật thông báo về cập nhật</string>
-    <string name="update_available_title">Đã có cập nhật mới</string>
-    <string name="update_channel_name">Cập nhật ứng dụng</string>
-    <string name="update_channel_desc">Thông báo về phiên bản mới của ứng dụng</string>
     <string name="google_cast">Google Cast</string>
     <string name="google_cast_description">Bật trình chiếu Audio đến Chromecast và các thiết bị khác có hỗ trợ tính năng trình chiếu (Cast)</string>
     <string name="lyrics_romanize_macedonian">Phiên âm chữ Ma-xê-đô-ni-a (Macedonia) sang chữ Latinh</string>

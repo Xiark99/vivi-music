@@ -385,16 +385,7 @@
     <string name="setting_data_saver_desc">Limiter l\'utilisation du réseau</string>
     <string name="setting_backup_restore_desc">Paramètres d\'importation/exportation</string>
     <string name="setting_about_desc">Version et informations sur l\'application</string>
-    <string name="setting_auto_update_desc">Rechercher automatiquement les nouvelles versions de l\'application</string>
-    <string name="setting_beta_updates_desc">S\'inscrire aux versions bêta expérimentales</string>
 
-    <!-- Updater -->
-    <string name="updater">Mise à jour</string>
-    <string name="check_for_updates">Rechercher automatiquement les mises à jour</string>
-	<string name="error_checking_updates">Erreur lors de la recherche de mises à jour</string>
-    <string name="update_available_title">Mise à jour disponible</string>
-    <string name="update_channel_name">Mises à jour de l\'application</string>
-    <string name="update_channel_desc">Notifications concernant les nouvelles versions</string>
 
     <!-- Offload -->
     <string name="audio_offload">Activer le déchargement</string>
@@ -922,8 +913,6 @@ est irréversible.
     <string name="perm_notif_title">Notifications</string>
     <string name="perm_notif_desc">Sachez immédiatement quand votre musique est en cours de lecture et contrôlez-la depuis la barre de notifications.</string>
 
-    <string name="perm_install_title">Installation de l\'application</string>
-    <string name="perm_install_desc">Nécessaire pour télécharger et installer les mises à jour de l\'application en toute simplicité.</string>
 
     <string name="feat_discover">Découverte</string>
     <string name="feat_features">Caractéristiques</string>
@@ -938,8 +927,6 @@ est irréversible.
     <string name="feat_quality_title">Qualité Premium</string>
     <string name="feat_quality_desc">Écoutez en streaming et téléchargez.</string>
 
-    <string name="feat_update_title">Mises à jour dynamiques</string>
-    <string name="feat_update_desc">Restez toujours à jour grâce à notre outil de mise à jour intégré.</string>
 
     <string name="feat_license_title">Licence</string>
     <string name="feat_license_desc">Licence publique générale v3.0</string>
@@ -947,13 +934,6 @@ est irréversible.
     <string name="feat_github_desc">Projet open source</string>
 
     <string name="join_telegram">Rejoignez notre chaîne Telegram</string>
-    <string name="welcome_update_check">Rester</string>
-    <string name="welcome_update_status">Mise à jour</string>
-    <string name="welcome_update_intro">Pour vous garantir les dernières fonctionnalités et les dernières améliorations en matière de sécurité.</string>
-    <string name="welcome_checking_updates">Recherche de mises à jour…</string>
-    <string name="welcome_up_to_date">Vivi Music est à jour !</string>
-    <string name="welcome_update_available">Une nouvelle version est disponible : %s</string>
-    <string name="welcome_everything_ready">Tout est désormais à jour</string>
     <string name="commits_title">Commits</string>
     <string name="error_loading_commits">Impossible de charger les commits car vous ne m\'avez pas payé !</string>
     <string name="commits">Commits</string>
@@ -963,11 +943,6 @@ est irréversible.
     <string name="no_comments">Aucun commentaire trouvé</string>
     <string name="type_message">Écrivez un message…</string>
     <string name="send">Envoyer</string>
-    <string name="clear_downloaded_updates_auto_info">Il sera supprimé automatiquement au bout d\'un jour.</string>
-    <string name="update_info_badge">Informations &amp; Conseils</string>
-    <string name="update_info_title">Informations sur la mise à jour</string>
-    <string name="manual_delete_hint_title">Nettoyage manuel</string>
-    <string name="manual_delete_hint_desc">Vous pouvez également les supprimer manuellement. La suppression des anciens fichiers APK permettra au programme de mise à jour de fonctionner correctement.</string>
 
     <!-- Playback Log -->
     <string name="logs_heading">Journaux</string>
@@ -1127,4 +1102,12 @@ est irréversible.
     <string name="sponsorblock_skipped_intro">Segment d\'introduction ignoré</string>
     <string name="sponsorblock_skipped_outro">Segment de fin ignoré</string>
     <string name="sponsorblock_skipped_segment">Segment « SponsorBlock » ignoré</string>
+    <string name="vivi_music_title">VIVI MUSIC</string>
+    <string name="app_developer">Développeur d\'applications</string>
+    <string name="developer_name">VIVIDH P ASHOKAN</string>
+    <string name="website">Site web</string>
+    <string name="installed_date_title">Date d\'installation</string>
+    <string name="notification_settings_desc">Configurez et gérez les notifications concernant les mises à jour de l\'application, les versions bêta et la progression des téléchargements. La désactivation des notifications empêchera l\'affichage des mises à jour d\'état en arrière-plan.</string>
+    <string name="enable_notifications">Activer les notifications</string>
+    <string name="notification_settings">Paramètres de notification</string>
 </resources>

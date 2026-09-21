@@ -200,12 +200,6 @@
     <string name="settings_section_player_content">プレーヤーとコンテンツ</string>
     <string name="settings_section_storage">ストレージとデータ</string>
     <string name="settings_section_system">システムと概要</string>
-    <string name="updater">アップデーター</string>
-    <string name="check_for_updates">自動でアップデートを確認する</string>
-    <string name="update_notifications">新しいバージョンがある場合は通知を受け取る</string>
-    <string name="update_available_title">アップデートが利用可能です</string>
-    <string name="update_channel_name">アプリをアップデート</string>
-    <string name="update_channel_desc">新しいバージョンの通知</string>
     <string name="audio_offload">オフロード再生を有効化</string>
     <string name="audio_offload_description">音声の再生にオフロードのオーディオパスを使用します。この設定を無効にすると消費電力が増加する可能性がありますが、再生や音声の処理に関する問題の改善に役立つ場合があります</string>
     <string name="lyrics_romanize_macedonian">マケドニア語の歌詞にローマ字を追加</string>

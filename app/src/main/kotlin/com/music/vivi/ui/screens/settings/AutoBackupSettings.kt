@@ -6,8 +6,12 @@
 package com.music.vivi.ui.screens.settings
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -52,11 +56,10 @@ import androidx.navigation.NavController
 import com.music.vivi.LocalPlayerAwareWindowInsets
 import com.music.vivi.R
 import com.music.vivi.constants.AutoBackupEnabledKey
+import com.music.vivi.constants.AutoBackupLocationKey
 import com.music.vivi.constants.AutoBackupWeeklyKey
-import com.music.vivi.constants.AutoBackupBeforeUpdateKey
 import com.music.vivi.ui.component.ExpressiveSettingGroup
 import com.music.vivi.ui.component.IconButton
-import com.music.vivi.ui.component.Material3SettingsGroup
 import com.music.vivi.ui.component.Material3SettingsItem
 import com.music.vivi.ui.component.ModernSwitch
 import com.music.vivi.ui.utils.backToMain
@@ -64,7 +67,6 @@ import com.music.vivi.ui.utils.formatFileSize
 import com.music.vivi.utils.AutoBackupHelper
 import com.music.vivi.utils.rememberPreference
 import com.music.vivi.viewmodels.BackupRestoreViewModel
-import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -83,25 +85,55 @@ fun AutoBackupSettings(
         AutoBackupWeeklyKey,
         defaultValue = false
     )
-    val (autoBackupBeforeUpdate, onAutoBackupBeforeUpdateChange) = rememberPreference(
-        AutoBackupBeforeUpdateKey,
-        defaultValue = true
+    val (autoBackupLocation, onAutoBackupLocationChange) = rememberPreference(
+        AutoBackupLocationKey,
+        defaultValue = ""
     )
 
-    var backupsList by remember { mutableStateOf(emptyList<File>()) }
-    var backupToDelete by remember { mutableStateOf<File?>(null) }
-    var backupToRestore by remember { mutableStateOf<File?>(null) }
+    var backupsList by remember { mutableStateOf(emptyList<AutoBackupHelper.AutoBackupEntry>()) }
+    var backupToDelete by remember { mutableStateOf<AutoBackupHelper.AutoBackupEntry?>(null) }
+    var backupToRestore by remember { mutableStateOf<AutoBackupHelper.AutoBackupEntry?>(null) }
 
     fun reloadBackups() {
         backupsList = AutoBackupHelper.getAutoBackups(context)
     }
 
-    LaunchedEffect(Unit) {
+    val backupLocationPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri != null) {
+            val permissionFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(uri, permissionFlags)
+            }.onSuccess {
+                if (autoBackupLocation.isNotBlank() && autoBackupLocation != uri.toString()) {
+                    runCatching {
+                        context.contentResolver.releasePersistableUriPermission(
+                            Uri.parse(autoBackupLocation),
+                            permissionFlags
+                        )
+                    }
+                }
+                onAutoBackupLocationChange(uri.toString())
+            }
+        }
+    }
+
+    LaunchedEffect(autoBackupLocation) {
         reloadBackups()
     }
 
     LaunchedEffect(autoBackupEnabled, autoBackupWeekly) {
         AutoBackupHelper.updateWeeklyBackupWork(context, autoBackupEnabled && autoBackupWeekly)
+    }
+
+    val configuredBackupLocation = AutoBackupHelper.getBackupLocation(context, autoBackupLocation)
+    val backupLocationDescription = when {
+        autoBackupLocation.isBlank() -> stringResource(R.string.backup_location_default)
+        configuredBackupLocation?.isAvailable == true -> configuredBackupLocation.displayName
+            ?: stringResource(R.string.backup_location_unavailable)
+        else -> stringResource(R.string.backup_location_unavailable)
     }
 
     // Large capsule banner background color animation
@@ -177,8 +209,32 @@ fun AutoBackupSettings(
         // Checklist Settings Group
         ExpressiveSettingGroup(
             title = stringResource(R.string.options),
-            items = listOf(
-                Material3SettingsItem(
+            items = buildList {
+                add(
+                    Material3SettingsItem(
+                        title = { Text(stringResource(R.string.backup_location)) },
+                        description = { Text(backupLocationDescription) },
+                        onClick = { backupLocationPicker.launch(null) }
+                    )
+                )
+                if (autoBackupLocation.isNotBlank()) {
+                    add(
+                        Material3SettingsItem(
+                            title = { Text(stringResource(R.string.use_default_location)) },
+                            onClick = {
+                                runCatching {
+                                    context.contentResolver.releasePersistableUriPermission(
+                                        Uri.parse(autoBackupLocation),
+                                        Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                                            Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                                    )
+                                }
+                                onAutoBackupLocationChange("")
+                            }
+                        )
+                    )
+                }
+                add(Material3SettingsItem(
                     title = { Text(stringResource(R.string.weekly_backup)) },
                     description = { Text(stringResource(R.string.weekly_backup_desc)) },
                     trailingContent = {
@@ -192,23 +248,8 @@ fun AutoBackupSettings(
                     onClick = {
                         onAutoBackupWeeklyChange(!autoBackupWeekly)
                     }
-                ),
-                Material3SettingsItem(
-                    title = { Text(stringResource(R.string.backup_before_update)) },
-                    description = { Text(stringResource(R.string.backup_before_update_desc)) },
-                    trailingContent = {
-                        Checkbox(
-                            checked = autoBackupBeforeUpdate,
-                            onCheckedChange = null,
-                            enabled = autoBackupEnabled
-                        )
-                    },
-                    enabled = autoBackupEnabled,
-                    onClick = {
-                        onAutoBackupBeforeUpdateChange(!autoBackupBeforeUpdate)
-                    }
-                )
-            )
+                ))
+            }
         )
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -225,10 +266,10 @@ fun AutoBackupSettings(
                 )
             } else {
                 backupsList.map { backupFile ->
-                    val (dateStr, typeStr) = parseBackupFilename(backupFile, context)
+                    val (dateStr, typeStr) = parseBackupFilename(backupFile.name, context)
                     Material3SettingsItem(
                         title = { Text(dateStr) },
-                        description = { Text("$typeStr • ${formatFileSize(backupFile.length())}") },
+                        description = { Text("$typeStr • ${formatFileSize(backupFile.size)}") },
                         onClick = {
                             backupToRestore = backupFile
                         },
@@ -305,7 +346,8 @@ fun AutoBackupSettings(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        viewModel.restoreFromFile(context, file)
+                        file.uri?.let { viewModel.restore(context, it) }
+                            ?: file.file?.let { viewModel.restoreFromFile(context, it) }
                         backupToRestore = null
                     }
                 ) {
@@ -321,8 +363,7 @@ fun AutoBackupSettings(
     }
 }
 
-private fun parseBackupFilename(file: File, context: Context): Pair<String, String> {
-    val name = file.name
+private fun parseBackupFilename(name: String, context: Context): Pair<String, String> {
     val timestampRegex = Regex("""(\d{8}_\d{6})\.backup$""")
     val timestampMatch = timestampRegex.find(name)
     val formattedTime = if (timestampMatch != null) {

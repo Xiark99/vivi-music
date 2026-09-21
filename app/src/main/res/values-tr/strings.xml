@@ -422,12 +422,9 @@
     <string name="enable_automatic_backup">Otomatik Yedeklemeyi Etkinleştir</string>
     <string name="weekly_backup">Haftalık yedekleme</string>
     <string name="weekly_backup_desc">Verilerinizi arka planda her hafta otomatik olarak yedekler.</string>
-    <string name="backup_before_update">Güncelleme öncesi yedekle</string>
-    <string name="backup_before_update_desc">Uygulama güncellemesini indirmeden önce verilerinizi otomatik olarak yedekler.</string>
     <string name="stored_backups">Kaydedilen yedeklemeler</string>
     <string name="no_stored_backups">Henüz kaydedilmiş otomatik yedekleme yok.</string>
     <string name="backup_type_weekly">Haftalık Yedekleme</string>
-    <string name="backup_type_before_update">Güncelleme Öncesi</string>
     <string name="delete_backup_confirm">Bu yedeklemeyi silmek istediğinizden emin misiniz?</string>
     <string name="restore_backup_confirm">Bu yedeği geri yüklemek istediğinizden emin misiniz? Değişiklikleri uygulamak için uygulama kapanacak ve yeniden başlatılacaktır.</string>
     <string name="backup_deleted">Yedekleme başarıyla silindi</string>
@@ -442,4 +439,5 @@
     <string name="new_release_notifications_info">Bazı cihazlarda (Samsung, Xiaomi vb.) pil optimizasyonu arka plan bildirimlerini geciktirebilir veya engelleyebilir. Zamanında uyarı alabilmek için cihaz ayarlarınızdan Vivi Music\'in pil kullanımını Kısıtlanmamış olarak ayarlayın.</string>
     <string name="taste_based_release_notifications">Zevke dayalı yeni çıkan uyarıları</string>
     <string name="taste_based_release_notifications_subtitle">Sık dinlediğiniz sanatçılar yeni şarkı veya albüm çıkardığında bildir</string>
+    <string name="backup_type_before_update">Güncelleme Öncesi</string>
 </resources>

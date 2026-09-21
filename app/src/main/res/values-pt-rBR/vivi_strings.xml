@@ -204,12 +204,7 @@
     <string name="uploaded_playlist">Enviada</string>
     <string name="filter_uploaded">Enviado</string>
     <string name="show_uploaded_playlist">Mostrar listas \"Enviadas\"</string>
-    <string name="updater">Atualizador</string>
-    <string name="check_for_updates">Conferir se há atualizações automaticamente</string>
     <string name="lyrics_romanize_macedonian">Romanizar letras em Macedônio</string>
-    <string name="update_available_title">Atualização disponível</string>
-    <string name="update_channel_name">Atualizações do aplicativo</string>
-    <string name="update_channel_desc">Notificações sobre novas versões</string>
     <string name="discord_use_details">Usar detalhes ao invés do estado</string>
     <string name="discord_use_details_description">Mostrar o título da música destacadamente em vez do nome do artista</string>
     <string name="integrations">Integrações</string>
@@ -809,8 +804,6 @@
     <string name="perm_intro_text">Estas permissões são necessárias para que a ViviMusic funcione corretamente. Por favor, conceda-lhes que prossigam.</string>
     <string name="perm_notif_title">Notificação</string>
     <string name="perm_notif_desc">Saiba imediatamente quando sua música está tocando e controle-a da barra de notificação.</string>
-    <string name="perm_install_title">Instalação do aplicativo</string>
-    <string name="perm_install_desc">É necessário baixar e instalar as atualizações do aplicativo de forma perfeita.</string>
     <string name="feat_discover">Descobrir</string>
     <string name="feat_features">Características</string>
     <string name="feat_intro">Explore tudo o que a ViviMusic tem para oferecer na sua jornada musical.</string>
@@ -820,20 +813,11 @@
     <string name="feat_download_desc">Baixe suas faixas favoritas e ouça em qualquer lugar, a qualquer hora.</string>
     <string name="feat_quality_title">Qualidade Premium</string>
     <string name="feat_quality_desc">Transmita e baixe.</string>
-    <string name="feat_update_title">Atualizações dinâmicas</string>
-    <string name="feat_update_desc">Mantenha-se sempre atualizado com o nosso atualizador embutido.</string>
     <string name="feat_license_title">Licença</string>
     <string name="feat_license_desc">Licença Pública Geral v3.0</string>
     <string name="feat_github_title">GitHub</string>
     <string name="feat_github_desc">Projecto de código aberto</string>
     <string name="join_telegram">Junte-se ao nosso canal Telegram</string>
-    <string name="welcome_update_check">Fica.</string>
-    <string name="welcome_update_status">Atualizado</string>
-    <string name="welcome_update_intro">Garantir que você tenha as últimas funcionalidades e melhorias de segurança.</string>
-    <string name="welcome_checking_updates">Verificando as atualizações...</string>
-    <string name="welcome_up_to_date">A ViviMusic está atualizada!</string>
-    <string name="welcome_update_available">Nova versão está disponível: %s</string>
-    <string name="welcome_everything_ready">Tudo está agora atualizado</string>
     <string name="commits_title">Commits</string>
     <string name="error_loading_commits">Não carregaste os commits porque não me pagaste?</string>
     <string name="commits">Commits</string>
@@ -843,11 +827,6 @@
     <string name="no_comments">Não foram encontrados comentários</string>
     <string name="type_message">Digite uma mensagem...</string>
     <string name="send">Enviar</string>
-    <string name="clear_downloaded_updates_auto_info">Dinâmicamente será excluído depois de um dia.</string>
-    <string name="update_info_badge">&amp; Dicas de Informação</string>
-    <string name="update_info_title">Atualizar informações</string>
-    <string name="manual_delete_hint_title">Limpeza manual</string>
-    <string name="manual_delete_hint_desc">Você também pode excluir manualmente. Excluir o apk antigo irá melhorar o updater para atualizar corretamente.</string>
     <string name="logs_heading">Registos</string>
     <string name="playback_logs">Registos de reprodução</string>
     <string name="playback_logs_desc">Ver eventos de resolução de fluxo em tempo real e mitigação de bots</string>
@@ -956,4 +935,12 @@
     <string name="account_settings_desc_appearance">Personalize seu tema de aplicativo e layout de UI</string>
     <string name="account_settings_desc_data">Controle seus downloads e uso de cache</string>
     <string name="account_settings_desc_about">Informações sobre versões e detalhes legais</string>
+    <string name="vivi_music_title">MÚSICA VIVI</string>
+    <string name="app_developer">Desenvolvimento Principal</string>
+    <string name="developer_name">VIVIDH P ASHOKAN</string>
+    <string name="website">Site</string>
+    <string name="installed_date_title">Data Instalada</string>
+    <string name="notification_settings_desc">Configure e gerencie notificações para atualizações de aplicativos, versões beta e progresso de download. Desativar as notificações irá impedir que apareçam atualizações de estado de fundo.</string>
+    <string name="enable_notifications">Habilitar notificações</string>
+    <string name="notification_settings">Configuração da notificação</string>
 </resources>

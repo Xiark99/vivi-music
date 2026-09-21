@@ -211,7 +211,6 @@
     <string name="edit_playlist_cover">Uredi naslovnico seznama predvajanja</string>
     <string name="settings_section_ui">Vmesnik</string>
     <string name="settings_section_privacy">Zasebnost in varnost</string>
-    <string name="update_channel_desc">Obvestila o novih različicah</string>
     <string name="discord_use_details">Uporabi podrobnosti namesto statusa</string>
     <string name="discord_use_details_description">Izpostavi naslov pesmi namesto izvajalca</string>
     <string name="integrations">Integracije</string>
@@ -258,11 +257,6 @@
     <string name="choose_from_library">Izberi iz knjižnice</string>
     <string name="remove_custom_image">Odstrani naslovnico po meri</string>
     <string name="lyrics_romanize_macedonian">Romaniziraj makedonska besedila</string>
-    <string name="updater">Posodobitve</string>
-    <string name="check_for_updates">Samodejno preverjanje posodobitev</string>
-    <string name="update_notifications">Omogoči obvestila o posodobitvah</string>
-    <string name="update_available_title">Na voljo je posodobitev</string>
-    <string name="update_channel_name">Posodobitve aplikacije</string>
     <string name="hide_video_songs">Skrij videospote</string>
     <string name="google_cast">Google Cast</string>
     <string name="google_cast_description">Omogoči predvajanje zvoka na Chromecast in druge naprave s funkcijo Cast</string>

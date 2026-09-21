@@ -202,12 +202,6 @@
     <string name="settings_section_player_content">Αναπαραγωγέας &amp; Περιεχόμενο</string>
     <string name="settings_section_storage">Αποθήκευση &amp; Δεδομένα</string>
     <string name="settings_section_system">Σύστημα &amp; Σχετικά</string>
-    <string name="updater">Ενημερωτής</string>
-    <string name="check_for_updates">Αυτόματος έλεγχος για ενημερώσεις</string>
-    <string name="update_notifications">Ενεργοποίηση ειδοποιήσεων για ενημερώσεις</string>
-    <string name="update_available_title">Διαθέσιμη ενημέρωση</string>
-    <string name="update_channel_name">Ενημερώσεις εφαρμογής</string>
-    <string name="update_channel_desc">Ειδοποιήσεις για νέες εκδόσεις</string>
     <string name="audio_offload">Ενεργοποίηση εκφόρτωσης</string>
     <string name="audio_offload_description">Χρησιμοποιήστε τη διαδρομή εκφόρτωσης ήχου για αναπαραγωγή ήχου. Η απενεργοποίηση αυτής της λειτουργίας μπορεί να αυξήσει την κατανάλωση ενέργειας, αλλά μπορεί να είναι χρήσιμη εάν αντιμετωπίζετε προβλήματα με την αναπαραγωγή ήχου ή την μετα-επεξεργασία</string>
     <string name="lyrics_romanize_macedonian">Λατινοποίηση Σλαβομακεδονικών στίχων</string>

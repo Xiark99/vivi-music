@@ -352,12 +352,9 @@
     <string name="enable_automatic_backup">Aktiv et Avtomatik Yedəklə</string>
     <string name="weekly_backup">Həftəlik yedək</string>
     <string name="weekly_backup_desc">Avtomatikally yedək sizin data hər həftə in arxa fon.</string>
-    <string name="backup_before_update">Yedəklə əvvəl yeniləmə</string>
-    <string name="backup_before_update_desc">Avtomatikally yedək sizin data əvvəl yüklənir bir tətbiq yeniləmə.</string>
     <string name="stored_backups">Stored backups</string>
     <string name="no_stored_backups">No avtomatik backups stored yet.</string>
     <string name="backup_type_weekly">Həftəlik Yedəklə</string>
-    <string name="backup_type_before_update">Əvvəl Yeniləmə</string>
     <string name="delete_backup_confirm">Dır siz sure siz want -a sil bu yedək?</string>
     <string name="restore_backup_confirm">Dır siz sure siz want -a bərpa bu yedək? tətbiq will bağla və yenidən başlat -a apply changes.</string>
     <string name="backup_deleted">Yedəklə deleted uğurla</string>
@@ -372,4 +369,5 @@
     <string name="new_release_notifications_info">Açıq some cihazlar (Samsung, Xiaomi, etc.), batareya optimization may delay və ya block arxa fon bildirişlər. -a ensure timely xəbərdarlıqlar, set Vivi Musiqi -a Unrestricted batareya usage in sizin cihaz parametrlər.</string>
     <string name="taste_based_release_notifications">Zövq-əsaslanan buraxmaq xəbərdarlıqlar</string>
     <string name="taste_based_release_notifications_subtitle">Notify when ifaçılar siz tez-tez listen -a buraxmaq yeni mahnılar və ya albomlar</string>
+    <string name="backup_type_before_update">Əvvəl Yeniləmə</string>
 </resources>

@@ -360,12 +360,9 @@
     <string name="enable_automatic_backup">Habilitar backup automática</string>
     <string name="weekly_backup">Backup semanal</string>
     <string name="weekly_backup_desc">Faça backup automático dos seus dados todas as semanas em segundo plano.</string>
-    <string name="backup_before_update">Backup antes da atualização</string>
-    <string name="backup_before_update_desc">Faça backup automático dos seus dados antes de baixar uma atualização de aplicativo.</string>
     <string name="stored_backups">Cópias de segurança armazenadas</string>
     <string name="no_stored_backups">Nenhum backup automático armazenado ainda.</string>
     <string name="backup_type_weekly">Backup semanal</string>
-    <string name="backup_type_before_update">Antes de Atualizar</string>
     <string name="delete_backup_confirm">Tem certeza de que deseja excluir este backup?</string>
     <string name="restore_backup_confirm">Tem certeza de que deseja restaurar este backup? O aplicativo irá fechar e reiniciar para aplicar alterações.</string>
     <string name="backup_deleted">Backup apagada com sucesso</string>
@@ -380,4 +377,5 @@
     <string name="new_release_notifications_info">Em alguns dispositivos (Samsung, Xiaomi, etc.), a otimização da bateria pode atrasar ou bloquear notificações de fundo. Para garantir alertas oportunos, configure a Vivi Music para uso irrestrita da bateria nas configurações do dispositivo.</string>
     <string name="taste_based_release_notifications">Alertas de lançamento baseados no gosto</string>
     <string name="taste_based_release_notifications_subtitle">Notificar quando os artistas que ouve frequentemente para lançar novas músicas ou álbuns</string>
+    <string name="backup_type_before_update">Antes de Atualizar</string>
 </resources>

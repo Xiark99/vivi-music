@@ -8,6 +8,7 @@ import com.metrolist.innertubex.models.response.PlayerResponse as InnerTubeXResp
 import com.metrolist.innertubex.InnerTube
 import com.metrolist.innertubex.InnerTubeLogLevel
 import com.metrolist.innertubex.InnerTubeLogger
+import com.metrolist.innertubex.models.YouTubeLocale
 import com.metrolist.innertubex.cipher.PlayerConfigRepository
 import com.metrolist.innertubex.cipher.RemotePlayerConfigStore
 import com.metrolist.innertubex.cipher.YouTubeCipherService
@@ -85,6 +86,12 @@ object InnerTubeXPlayer {
     @Synchronized
     fun initialize(context: Context) {
         if (applicationContext == null) applicationContext = context.applicationContext
+    }
+
+    fun setLocale(locale: YouTubeLocale) {
+        if (innerTubeX.locale != locale) {
+            innerTubeX.locale = locale
+        }
     }
 
     suspend fun prewarm() {

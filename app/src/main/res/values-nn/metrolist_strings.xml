@@ -238,12 +238,6 @@
     <string name="settings_section_player_content">Avspelar og innhald</string>
     <string name="settings_section_storage">Lagring og data</string>
     <string name="settings_section_system">System og opplysingar</string>
-    <string name="updater">Oppdaterar</string>
-    <string name="check_for_updates">Sjekka etter oppdateringar sjølvverkande</string>
-    <string name="update_notifications">Slå på oppdateringsvarsel</string>
-    <string name="update_available_title">Oppdatering tilgjengeleg</string>
-    <string name="update_channel_name">Appoppdateringar</string>
-    <string name="update_channel_desc">Varsel om nye utgåver</string>
     <string name="audio_offload">Slå på avlading</string>
     <string name="audio_offload_description">Nøyte avladingsljodstigen («offload audio path») for audioavspeling. Å slå dette av kan auka straumforbruk, men kan gagna om du opplever lyte med audioavspeling eller etterhandsaming</string>
     <string name="google_cast">Google Cast</string>

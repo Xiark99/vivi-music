@@ -79,7 +79,7 @@ import coil3.compose.AsyncImage
 import com.music.vivi.BuildConfig
 import com.music.vivi.LocalPlayerAwareWindowInsets
 import com.music.vivi.R
-import com.music.vivi.vivimusic.updater.extractUrls
+import com.music.vivi.extensions.extractUrls
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext

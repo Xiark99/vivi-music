@@ -410,12 +410,9 @@
     <string name="enable_automatic_backup">自動バックアップを有効化</string>
     <string name="weekly_backup">毎週のバックアップ</string>
     <string name="weekly_backup_desc">毎週バックグラウンドでデータを自動的にバックアップします。</string>
-    <string name="backup_before_update">アップデート前にバックアップ</string>
-    <string name="backup_before_update_desc">アプリのアップデートをダウンロードする前に、データを自動的にバックアップします。</string>
     <string name="stored_backups">保存されたバックアップ</string>
     <string name="no_stored_backups">自動バックアップはまだ保存されていません。</string>
     <string name="backup_type_weekly">毎週のバックアップ</string>
-    <string name="backup_type_before_update">アップデート前</string>
     <string name="delete_backup_confirm">このバックアップを削除してもよろしいですか？</string>
     <string name="restore_backup_confirm">このバックアップを復元してもよろしいですか？変更を適用するため、アプリが終了し再起動します。</string>
     <string name="backup_deleted">バックアップを削除しました</string>
@@ -425,4 +422,5 @@
     <string name="autobackup_settings">自動バックアップ設定</string>
     <string name="ai_additional_prompt">追加プロンプト</string>
     <string name="ai_additional_prompt_hint">既存の歌詞翻訳指示に追加する要望を入力します。空欄の場合は通常どおり翻訳します。</string>
+    <string name="backup_type_before_update">アップデート前</string>
 </resources>

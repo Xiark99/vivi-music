@@ -18,6 +18,7 @@ object LyricsProviderRegistry {
         "Paxsenix"        to PaxSenixLyricsProvider,
         "BetterLyrics"    to BetterLyricsProvider,
         "Musixmatch"      to MusixmatchLyricsProvider,
+        "SimpMusic"       to SimpMusicLyricsProvider,
         "LrcLib"          to LrcLibLyricsProvider,
         "Kugou"           to KuGouLyricsProvider,
         "Unison"          to UnisonLyricsProvider,
@@ -32,7 +33,8 @@ object LyricsProviderRegistry {
 
     fun deserializeProviderOrder(orderString: String): List<String> {
         if (orderString.isBlank()) return getDefaultProviderOrder()
-        return orderString.split(",").map { it.trim() }.filter { it in providerNames }
+        val savedOrder = orderString.split(",").map { it.trim() }.filter { it in providerNames }.distinct()
+        return savedOrder + getDefaultProviderOrder().filter { it !in savedOrder }
     }
 
     fun serializeProviderOrder(providers: List<String>): String =
@@ -43,6 +45,7 @@ object LyricsProviderRegistry {
         "YouLyPlus",
         "Paxsenix",
         "BetterLyrics",
+        "SimpMusic",
         "LrcLib",
         "Kugou",
         "Unison",
@@ -60,6 +63,7 @@ object LyricsProviderRegistry {
         PreferredLyricsProvider.KUGOU         -> "Kugou"
         PreferredLyricsProvider.BETTER_LYRICS -> "BetterLyrics"
         PreferredLyricsProvider.MUSIXMATCH    -> "Musixmatch"
+        PreferredLyricsProvider.SIMPMUSIC     -> "SimpMusic"
         PreferredLyricsProvider.YOULYPLUS     -> "YouLyPlus"
         PreferredLyricsProvider.PAXSENIX      -> "Paxsenix"
         PreferredLyricsProvider.UNISON        -> "Unison"
@@ -71,6 +75,7 @@ object LyricsProviderRegistry {
         "Paxsenix"        -> "PaxSenix"
         "BetterLyrics"    -> "Better Lyrics"
         "Musixmatch"      -> "Musixmatch"
+        "SimpMusic"       -> "SimpMusic"
         "LrcLib"          -> "LrcLib"
         "Kugou"           -> "KuGou"
         "Unison"          -> "Unison"

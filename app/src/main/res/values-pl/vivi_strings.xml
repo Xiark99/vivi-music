@@ -210,11 +210,6 @@
     <string name="show_uploaded_playlist">Pokaż playlistę \"Przesłane\"</string>
     <string name="discord_use_details">Używaj detali zamiast stanu</string>
     <string name="discord_use_details_description">Pokaż wyraźnie nazwy utworów zamiast artystów</string>
-    <string name="updater">Aktualizacje</string>
-    <string name="check_for_updates">Automatycznie sprawdzaj dostępność aktualizacji</string>
-    <string name="update_notifications">Włącz powiadomienia o aktualizacjach</string>
-    <string name="update_available_title">Aktualizacja dostępna</string>
-    <string name="update_channel_desc">Powiadomienia o nowych wersjach</string>
     <string name="lyrics_romanize_macedonian">Romanizuj macedońskie teksty</string>
     <string name="integrations">Integracje</string>
     <string name="username">Nazwa użytkownika</string>
@@ -228,7 +223,6 @@
     <string name="swipe_song_to_remove">Przesuń utwór, aby usunąć go z listy odtwarzania</string>
     <string name="auto_scroll">Ponowna synchronizacja</string>
     <string name="lyrics_romanize_chinese">Romanizuj chińskie teksty</string>
-    <string name="update_channel_name">Aktualizacje aplikacji</string>
     <string name="google_cast">Google Cast</string>
     <string name="google_cast_description">Włącz przesyłanie dźwięku do Chromecasta i innych urządzeń obsługujących Cast</string>
     <string name="last_fm_send_likes">Wyślij polubienia/niepolubienia</string>

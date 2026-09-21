@@ -149,23 +149,12 @@ import com.music.vivi.constants.DefaultOpenTabKey
 import com.music.vivi.constants.DisableScreenshotKey
 import com.music.vivi.constants.DynamicThemeKey
 import com.music.vivi.constants.EnableHighRefreshRateKey
-import com.music.vivi.constants.EnableSettingsPopupKey
 import com.music.vivi.constants.ListenTogetherInTopBarKey
 import com.music.vivi.constants.ListenTogetherUsernameKey
 import com.music.vivi.constants.MiniPlayerBottomSpacing
 import com.music.vivi.constants.MiniPlayerHeight
 import com.music.vivi.constants.NavigationBarAnimationSpec
 import com.music.vivi.constants.NavigationBarHeight
-import com.music.vivi.vivimusic.updater.checkForUpdate
-import com.music.vivi.vivimusic.updater.getAutoUpdateCheckSetting
-import com.music.vivi.vivimusic.updater.isNewerVersion
-import com.music.vivi.vivimusic.updater.saveUpdateAvailableState
-import com.music.vivi.vivimusic.updater.getUpdateNotificationsSetting
-import com.music.vivi.vivimusic.updater.getBetaUpdatesSetting
-import com.music.vivi.vivimusic.updater.getUpdateAvailableState
-import com.music.vivi.vivimusic.updater.shouldRunNightlyCheck
-import com.music.vivi.vivimusic.updater.markNightlyCheckDone
-import com.music.vivi.vivimusic.UpdateNotificationHelper
 import android.util.Log
 import androidx.compose.ui.platform.LocalContext
 import com.music.vivi.constants.PauseListenHistoryKey
@@ -198,7 +187,6 @@ import com.music.vivi.ui.component.shimmer.ShimmerTheme
 import com.music.vivi.ui.menu.YouTubeSongMenu
 import com.music.vivi.ui.player.BottomSheetPlayer
 import com.music.vivi.ui.screens.Screens
-import com.music.vivi.ui.screens.SettingsDropdownMenu
 import com.music.vivi.ui.screens.navigationBuilder
 import com.music.vivi.ui.screens.settings.DarkMode
 import com.music.vivi.ui.screens.settings.NavigationTab
@@ -414,46 +402,6 @@ class MainActivity : ComponentActivity() {
                 if (result == SnackbarResult.ActionPerformed) {
                     event.onAction?.invoke()
                 }
-            }
-        }
-
-        LaunchedEffect(Unit) {
-            if (getAutoUpdateCheckSetting(context)) {
-                val betaEnabled = getBetaUpdatesSetting(context)
-
-                // Beta/nightly path: only run once per day at 9 PM or later.
-                // The run-number comparison ("is there a new commit?") is already
-                // handled inside checkForUpdate — we just gate WHEN it is allowed
-                // to execute so it doesn't fire on every single app launch.
-                if (betaEnabled && !shouldRunNightlyCheck(context)) {
-                    Log.d("UpdateCheck", "Beta check skipped: outside 9 PM window or already ran today")
-                    return@LaunchedEffect
-                }
-
-                // Delay to not block app startup
-                delay(2000L)
-                checkForUpdate(
-                    context = context,
-                    onSuccess = { latestVersion, isAvailable, _, _, _, _, _, _ ->
-                        val currentVersion = BuildConfig.VERSION_NAME
-                        Log.d("UpdateCheck", "Startup check success. Latest: $latestVersion, Current: $currentVersion, isAvailable: $isAvailable")
-                        saveUpdateAvailableState(context, isAvailable)
-
-                        if (isAvailable && getUpdateNotificationsSetting(context)) {
-                            Log.d("UpdateCheck", "Posting update notification for $latestVersion")
-                            UpdateNotificationHelper.showUpdateNotification(context, latestVersion)
-                        }
-
-                        // Stamp today so no more nightly checks until tomorrow 9 PM
-                        if (betaEnabled) markNightlyCheckDone(context)
-                    },
-                    onError = {
-                        Log.e("UpdateCheck", "Startup check failed")
-                        // Do not clear the state on error, in case of offline launch
-                        // Note: we do NOT stamp markNightlyCheckDone on error so it
-                        // can retry later the same night if the user reopens the app.
-                    }
-                )
             }
         }
 
@@ -900,24 +848,6 @@ class MainActivity : ComponentActivity() {
                         !(isListenTogetherScreen && listenTogetherInTopBar)
                 }
 
-                val sharedPrefs = context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
-                val isUpdateAvailable = remember { mutableStateOf(getUpdateAvailableState(context)) }
-                
-                val updateListener = remember {
-                    SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-                        if (key == "update_available") {
-                            isUpdateAvailable.value = getUpdateAvailableState(context)
-                        }
-                    }
-                }
-                
-                DisposableEffect(sharedPrefs, updateListener) {
-                    sharedPrefs.registerOnSharedPreferenceChangeListener(updateListener)
-                    onDispose {
-                        sharedPrefs.unregisterOnSharedPreferenceChangeListener(updateListener)
-                    }
-                }
-                // Snackbar is now triggered in checkForUpdate directly
                 val coroutineScope = rememberCoroutineScope()
                 var sharedSong: SongItem? by remember {
                     mutableStateOf(null)
@@ -943,7 +873,7 @@ class MainActivity : ComponentActivity() {
 
                 val currentTitleRes = remember(navBackStackEntry) {
                     when (navBackStackEntry?.destination?.route) {
-                        Screens.Home.route -> R.string.music
+                        Screens.Home.route -> R.string.brand_name
                         Screens.Search.route -> R.string.search
                         Screens.Library.route -> R.string.filter_library
                         Screens.ListenTogether.route -> R.string.together
@@ -1004,88 +934,57 @@ class MainActivity : ComponentActivity() {
                                             )
                                         },
                                         actions = {
-                                            val (enableSettingsPopup) = rememberPreference(EnableSettingsPopupKey, defaultValue = true)
-
-                                            if (!enableSettingsPopup) {
-                                                if (showHistoryButton) {
-                                                    IconButton(onClick = { navController.navigate("history") }) {
-                                                        Icon(
-                                                            painter = painterResource(R.drawable.music_history),
-                                                            contentDescription = stringResource(R.string.history)
-                                                        )
-                                                    }
-                                                }
-                                                IconButton(onClick = { navController.navigate("stats") }) {
+                                            if (showHistoryButton) {
+                                                IconButton(onClick = { navController.navigate("history") }) {
                                                     Icon(
-                                                        painter = painterResource(R.drawable.stats),
-                                                        contentDescription = stringResource(R.string.stats)
+                                                        painter = painterResource(R.drawable.music_history),
+                                                        contentDescription = stringResource(R.string.history)
                                                     )
                                                 }
-                                                if (listenTogetherInTopBar) {
-                                                    IconButton(onClick = { navController.navigate("listen_together_from_topbar") }) {
-                                                        Icon(
-                                                            painter = painterResource(R.drawable.group_outlined),
-                                                            contentDescription = stringResource(R.string.together)
+                                            }
+                                            IconButton(onClick = { navController.navigate("stats") }) {
+                                                Icon(
+                                                    painter = painterResource(R.drawable.stats),
+                                                    contentDescription = stringResource(R.string.stats)
+                                                )
+                                            }
+                                            if (listenTogetherInTopBar) {
+                                                IconButton(onClick = { navController.navigate("listen_together_from_topbar") }) {
+                                                    Icon(
+                                                        painter = painterResource(R.drawable.group_outlined),
+                                                        contentDescription = stringResource(R.string.together)
+                                                    )
+                                                }
+                                            }
+                                            IconButton(onClick = { navController.navigate("settings") }) {
+                                                BadgedBox(badge = {}) {
+                                                    if (accountImageUrl != null) {
+                                                        AsyncImage(
+                                                            model = accountImageUrl,
+                                                            contentDescription = stringResource(R.string.account),
+                                                            modifier = Modifier
+                                                                .size(24.dp)
+                                                                .clip(CircleShape)
+                                                        )
+                                                    } else {
+                                                        val composition by rememberLottieComposition(
+                                                            LottieCompositionSpec.RawRes(R.raw.setting)
+                                                        )
+                                                        val progress by animateLottieCompositionAsState(
+                                                            composition = composition,
+                                                            isPlaying = true,
+                                                            iterations = 1,
+                                                            speed = 1.5f
+                                                        )
+
+                                                        LottieAnimation(
+                                                            composition = composition,
+                                                            progress = { progress },
+                                                            modifier = Modifier.size(50.dp),
+                                                            contentScale = ContentScale.Fit
                                                         )
                                                     }
                                                 }
-                                            }
-                                            if (enableSettingsPopup && accountImageUrl != null) {
-                                                IconButton(onClick = { navController.navigate("settings/account") }) {
-                                                    AsyncImage(
-                                                        model = accountImageUrl,
-                                                        contentDescription = stringResource(R.string.account),
-                                                        modifier = Modifier
-                                                            .size(24.dp)
-                                                            .clip(CircleShape)
-                                                    )
-                                                }
-                                            }
-                                            
-                                            Box {
-                                                var showSettingsDropdown by remember { mutableStateOf(false) }
-                                                IconButton(onClick = { 
-                                                    if (enableSettingsPopup) {
-                                                        showSettingsDropdown = true 
-                                                    } else {
-                                                        navController.navigate("settings")
-                                                    }
-                                                }) {
-                                                    BadgedBox(badge = {}) {
-                                                        if (!enableSettingsPopup && accountImageUrl != null) {
-                                                            AsyncImage(
-                                                                model = accountImageUrl,
-                                                                contentDescription = stringResource(R.string.account),
-                                                                modifier = Modifier
-                                                                    .size(24.dp)
-                                                                    .clip(CircleShape)
-                                                            )
-                                                        } else {
-                                                            val composition by rememberLottieComposition(
-                                                                LottieCompositionSpec.RawRes(R.raw.setting)
-                                                            )
-                                                            val progress by animateLottieCompositionAsState(
-                                                                composition = composition,
-                                                                isPlaying = true,
-                                                                iterations = 1,
-                                                                speed = 1.5f
-                                                            )
-    
-                                                            LottieAnimation(
-                                                                composition = composition,
-                                                                progress = { progress },
-                                                                modifier = Modifier.size(50.dp),
-                                                                contentScale = ContentScale.Fit
-                                                            )
-                                                        }
-                                                    }
-                                                }
-                                                SettingsDropdownMenu(
-                                                    expanded = showSettingsDropdown,
-                                                    onDismissRequest = { showSettingsDropdown = false },
-                                                    onNavigate = { route -> navController.navigate(route) },
-                                                    homeViewModel = homeViewModel
-                                                )
                                             }
                                         },
                                         scrollBehavior = topAppBarScrollBehavior,

@@ -193,7 +193,6 @@
     <string name="settings_section_storage">儲存和數據</string>
     <string name="settings_section_system">系統及關於</string>
     <string name="uploaded_playlist">已上傳</string>
-    <string name="update_available_title">可用更新</string>
     <string name="swipe_song_to_remove">滑動歌曲即可將其從播放清單刪除</string>
     <string name="show_uploaded_playlist">顯示「已上傳」播放清單</string>
     <string name="filter_uploaded">已上傳</string>
@@ -201,11 +200,6 @@
     <string name="remove_custom_image">移除自定義圖片</string>
     <string name="discord_use_details">使用詳細內容而非狀態</string>
     <string name="discord_use_details_description">強化顯示曲名而非作曲家</string>
-    <string name="updater">更新器</string>
-    <string name="check_for_updates">自動檢查更新</string>
-    <string name="update_notifications">開啟更新通知</string>
-    <string name="update_channel_name">應用程式更新</string>
-    <string name="update_channel_desc">新版本更新通知</string>
     <string name="audio_offload">啟動音訊卸載</string>
     <string name="audio_offload_description">使用卸載音訊路徑進行播放。停用此功能可能會增加耗電量，但若遇到音訊播放或後處理問題，建議將其關閉</string>
     <string name="lyrics_romanize_macedonian">羅馬化馬其頓語歌詞</string>

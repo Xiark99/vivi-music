@@ -222,12 +222,6 @@
     <string name="line_by_line_dialog_desc">Ez egy kísérleti funkció, változó megbízhatósággal.\n\nAlapértelmezésben a rendszer a teljes dal alapján határozza meg a nyelvet, ez az opció viszont soronkénti ellenőrzést tesz lehetővé. Ez hasznos a többnyelvű daloknál, DE a nyelvfelismerés nem mindig pontos (például, ha egy ukrán sor nem tartalmaz speciális ukrán karaktereket, a rendszer oroszként írhatja át).\n\nHa nem tapasztalsz problémát, javasolt kikapcsolva hagyni ezt az opciót.</string>
     <string name="line_by_line_dialog_enable">Bekapcsolás</string>
     <string name="romanize_current_track">Aktuális dal latin betűs átírása</string>
-    <string name="updater">Frissítések</string>
-    <string name="check_for_updates">Frissítések automatikus keresése</string>
-    <string name="update_notifications">Frissítések értesítéseinek bekapcsolása</string>
-    <string name="update_available_title">Frissítés elérhető</string>
-    <string name="update_channel_name">Alkalmazás frissítések</string>
-    <string name="update_channel_desc">Értesítés új verziókról</string>
     <string name="audio_offload">Audio-kiszervezés engedélyezése</string>
     <string name="audio_offload_description">Hardveres kiszervezés használata. Bár a kikapcsolása jobban merítheti az akkumulátort, segíthet, ha hibát észlelsz a lejátszásban vagy az effekteknél</string>
     <string name="google_cast">Google Cast</string>

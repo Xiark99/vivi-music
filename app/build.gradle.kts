@@ -25,9 +25,9 @@ android {
         applicationId = "com.vivi.vivimusic"
         minSdk = 26
         targetSdk = 37
-        versionCode = 78
+        versionCode = 79
         val betaVersionName = project.findProperty("betaVersionName") as String?
-        versionName = betaVersionName ?: "6.0.7"
+        versionName = betaVersionName ?: "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
@@ -102,6 +102,15 @@ android {
             keyPassword = System.getenv("KEY_PASSWORD")
         }
     }
+    create("customRelease") {
+        val keystorePath = System.getenv("VIVI_CUSTOM_RELEASE_KEYSTORE")
+            ?.takeIf { it.isNotBlank() }
+            ?: "${System.getProperty("user.home")}/.android/keystores/vivi-custom-release.jks"
+        storeFile = file(keystorePath)
+        storePassword = System.getenv("STORE_PASSWORD")
+        keyAlias = System.getenv("KEY_ALIAS") ?: "vivi-custom"
+        keyPassword = System.getenv("KEY_PASSWORD")
+    }
     getByName("debug") {
         keyAlias = "androiddebugkey"
         keyPassword = "android"
@@ -129,6 +138,7 @@ buildTypes {
     create("customRelease") {
         initWith(getByName("release"))
         applicationIdSuffix = ".custom"
+        signingConfig = signingConfigs.getByName("customRelease")
         matchingFallbacks += listOf("release")
     }
     create("customTest") {

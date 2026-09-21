@@ -206,12 +206,6 @@
     <string name="edit_playlist_cover_note_wait">Po výbere obrázka chvíľu počkajte, kým sa nový obal zobrazí vo vašom zozname skladieb.</string>
     <string name="choose_from_library">Vyberte si z knižnice</string>
     <string name="remove_custom_image">Odstrániť vlastný obrázok</string>
-    <string name="updater">Aktualizátor</string>
-    <string name="check_for_updates">Automaticky kontrolovať aktualizácie</string>
-    <string name="update_notifications">Povoliť upozornenia na aktualizácie</string>
-    <string name="update_available_title">Aktualizácia je k dispozícii</string>
-    <string name="update_channel_name">Aktualizácie aplikácií</string>
-    <string name="update_channel_desc">Upozornenia na nové verzie</string>
     <string name="audio_offload">Povoliť odľahčenie</string>
     <string name="audio_offload_description">Na prehrávanie zvuku použite cestu pre odľahčenie zvuku. Zakázanie tejto funkcie môže zvýšiť spotrebu energie, ale môže byť užitočné, ak máte problémy s prehrávaním zvuku alebo následným spracovaním</string>
     <string name="lyrics_romanize_macedonian">Romanizovať macedónske texty</string>

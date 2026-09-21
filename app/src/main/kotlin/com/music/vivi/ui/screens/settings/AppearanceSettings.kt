@@ -137,7 +137,6 @@ import com.music.vivi.constants.LyricsScrollKey
 import com.music.vivi.constants.MiniPlayerBackgroundStyleKey
 import com.music.vivi.constants.ShowAudioQualityBadgeKey
 import com.music.vivi.constants.ShowCommentButtonKey
-import com.music.vivi.constants.EnableSettingsPopupKey
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -157,10 +156,6 @@ fun AppearanceSettings(
     )
     val (enableDynamicIcon, onEnableDynamicIconChange) = rememberPreference(
         EnableDynamicIconKey,
-        defaultValue = true
-    )
-    val (enableSettingsPopup, onEnableSettingsPopupChange) = rememberPreference(
-        EnableSettingsPopupKey,
         defaultValue = true
     )
     val (enableHighRefreshRate, onEnableHighRefreshRateChange) = rememberPreference(
@@ -1174,30 +1169,6 @@ fun AppearanceSettings(
                             )
                         },
                         onClick = { onEnableHighRefreshRateChange(!enableHighRefreshRate) }
-                    )
-                )
-
-                add(
-                    Material3SettingsItem(
-                        icon = painterResource(R.drawable.settings), // Or tuning/setting generic icon
-                        title = { Text("Enable Settings Dropdown") },
-                        description = { Text("Show a Material 3 dropdown menu when clicking the settings icon on the home screen") },
-                        trailingContent = {
-                            Switch(
-                                checked = enableSettingsPopup,
-                                onCheckedChange = onEnableSettingsPopupChange,
-                                thumbContent = {
-                                    Icon(
-                                        painter = painterResource(
-                                            id = if (enableSettingsPopup) R.drawable.check else R.drawable.close
-                                        ),
-                                        contentDescription = null,
-                                        modifier = Modifier.size(SwitchDefaults.IconSize)
-                                    )
-                                }
-                            )
-                        },
-                        onClick = { onEnableSettingsPopupChange(!enableSettingsPopup) }
                     )
                 )
 

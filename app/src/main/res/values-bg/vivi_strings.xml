@@ -198,12 +198,6 @@
     <string name="settings_section_player_content">Плейър и съдържание</string>
     <string name="settings_section_storage">Съхранение и \'БекЪп\'</string>
     <string name="settings_section_system">Системни &amp; относно приложението</string>
-    <string name="updater">Актуализатор</string>
-    <string name="check_for_updates">Автоматична проверка за актуализации</string>
-    <string name="update_notifications">Активиране на известия за актуализации</string>
-    <string name="update_available_title">Налична е актуализация</string>
-    <string name="update_channel_name">Актуализации на приложения</string>
-    <string name="update_channel_desc">Известия за нови версии</string>
     <string name="audio_offload">Активиране на хардуерно аудио ускорение</string>
     <string name="audio_offload_description">Използвайте хардуерно възпроизвеждане на аудио. Деактивирането на тази функция може да увеличи консумацията на енергия, но може да бъде полезно, ако имате проблеми с възпроизвеждането на аудио или последващата обработка</string>
     <string name="lyrics_romanize_macedonian">Романизиране на македонските текстове</string>

@@ -38,7 +38,6 @@ import com.music.vivi.ui.screens.playlist.OnlinePlaylistScreen
 import com.music.vivi.ui.screens.playlist.TopPlaylistScreen
 import com.music.vivi.ui.screens.search.OnlineSearchResult
 import com.music.vivi.ui.screens.search.SearchScreen
-import com.music.vivi.ui.screens.settings.AboutScreen
 import com.music.vivi.ui.screens.settings.AppearanceSettings
 import com.music.vivi.ui.screens.settings.CanvasSelection
 import com.music.vivi.ui.screens.settings.FontSelectionScreen
@@ -68,10 +67,7 @@ import com.music.vivi.ui.screens.settings.integrations.LastFMSettings
 import com.music.vivi.ui.screens.settings.integrations.ListenTogetherSettings
 import com.music.vivi.ui.screens.recognition.RecognitionScreen
 import com.music.vivi.ui.screens.recognition.RecognitionHistoryScreen
-import com.music.vivi.ui.screens.settings.UpdateSettings
-import com.music.vivi.ui.screens.settings.NotificationPermission
 import com.music.vivi.ui.screens.wrapped.WrappedScreen
-import com.music.vivi.vivimusic.updater.UpdateScreen
 import com.music.vivi.utils.rememberEnumPreference
 import com.music.vivi.utils.rememberPreference
 import com.music.vivi.vivimusic.changelog.ChangelogScreen
@@ -339,14 +335,6 @@ fun NavGraphBuilder.navigationBuilder(
         SettingsScreen(navController, scrollBehavior)
     }
 
-    composable("settings/update") {
-       UpdateSettings(navController, scrollBehavior)
-    }
-
-    composable("settings/update/notification_permission") {
-        NotificationPermission(navController, scrollBehavior)
-    }
-
     composable("settings/account") {
         AccountSettingsScreen(navController, scrollBehavior, homeViewModel)
     }
@@ -450,15 +438,6 @@ fun NavGraphBuilder.navigationBuilder(
     composable("settings/discord/login") {
         DiscordLoginScreen(navController)
     }
-
-    composable("settings/about") {
-        AboutScreen(navController, scrollBehavior)
-    }
-
-    composable("update") {
-        UpdateScreen(navController)
-    }
-
     composable("login") {
         LoginScreen(navController)
     }

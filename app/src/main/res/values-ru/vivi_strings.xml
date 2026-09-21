@@ -209,12 +209,6 @@
     <string name="filter_uploaded">Загруженные</string>
     <string name="show_uploaded_playlist">Показать плейлист \"Загруженные\"</string>
     <string name="lyrics_romanize_macedonian">Романизировать тексты на македонском</string>
-    <string name="updater">Обновления</string>
-    <string name="check_for_updates">Автоматически проверять наличие обновлений</string>
-    <string name="update_notifications">Включить уведомления об обновлениях</string>
-    <string name="update_available_title">Доступно обновление</string>
-    <string name="update_channel_name">Обновления приложения</string>
-    <string name="update_channel_desc">Уведомления о новых версиях</string>
     <string name="discord_use_details">Использовать подробности вместо статуса</string>
     <string name="discord_use_details_description">Показывать в заголовке название трека вместо исполнителя</string>
     <string name="integrations">Интеграции</string>

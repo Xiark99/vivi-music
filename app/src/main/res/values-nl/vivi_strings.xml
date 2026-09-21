@@ -175,10 +175,6 @@
     <string name="remove_custom_image">Verwijder aangepaste afbeelding</string>
     <string name="show_uploaded_playlist">\"Geupload\" tonen</string>
     <string name="lyrics_romanize_macedonian">Macedonisch romaniseren</string>
-    <string name="updater">Updateprogramma</string>
-    <string name="check_for_updates">Automatisch voor updates controleren</string>
-    <string name="update_notifications">Update meldingen aanzetten</string>
-    <string name="update_available_title">Update beschikbaar</string>
     <string name="integrations">Integraties</string>
     <string name="username">Gebruikersnaam</string>
     <string name="password">Wachtwoord</string>
@@ -266,7 +262,6 @@
     <string name="dislikes">Niet leuk</string>
     <string name="pause_music_when_media_is_muted">Muziek pauzeren wanneer media gedempt is</string>
     <string name="keep_screen_on_when_player_is_expanded">Houd scherm aan als mediaspeler is uitgeklapt</string>
-    <string name="update_channel_desc">Meldingen over nieuwe versies</string>
     <string name="google_cast">Google Casten</string>
     <string name="play_next_desc">Voeg toe aan het begin van je wachtrij</string>
     <string name="add_to_queue_desc">Voeg toe aan het einde van je wachtrij</string>

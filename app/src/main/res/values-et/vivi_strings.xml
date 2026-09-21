@@ -144,11 +144,6 @@
     <string name="empty_playlist_desc">Selles esitusloendis pole ühtegi lugu</string>
     <string name="settings_section_ui">Kasutajaliides</string>
     <string name="settings_section_privacy">Privaatsus ja turvalisus</string>
-    <string name="updater">Uuendaja</string>
-    <string name="check_for_updates">Kontrolli uuendusi automaatselt</string>
-    <string name="update_notifications">Lülita uuenduste teavitused sisse</string>
-    <string name="update_available_title">Uus versioon on saadaval</string>
-    <string name="update_channel_name">Rakenduse uuendused</string>
     <string name="integrations">Lõimingud</string>
     <string name="username">Kasutajanimi</string>
     <string name="password">Salasõna</string>

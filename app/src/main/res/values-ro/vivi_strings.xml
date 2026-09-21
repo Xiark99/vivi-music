@@ -205,15 +205,9 @@
     <string name="uploaded_playlist">Încărcate</string>
     <string name="filter_uploaded">Încărcate</string>
     <string name="show_uploaded_playlist">Arată playlistul \"Încărcate\"</string>
-    <string name="updater">Actualizator</string>
-    <string name="check_for_updates">Verifică automat pentru actualizări</string>
     <string name="lyrics_romanize_macedonian">Romanizează versurile în macedoniană</string>
     <string name="discord_use_details">Utilizează detalii în loc de stare</string>
     <string name="discord_use_details_description">Arată titlul melodiei în loc de numele artistului</string>
-    <string name="update_notifications">Activează notificările pentru actualizări</string>
-    <string name="update_available_title">Actualizare disponibilă</string>
-    <string name="update_channel_name">Actualizări ale aplicației</string>
-    <string name="update_channel_desc">Notificări despre versiuni noi</string>
     <string name="integrations">Integrări</string>
     <string name="username">Nume de utilizator</string>
     <string name="password">Parolă</string>

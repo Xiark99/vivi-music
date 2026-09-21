@@ -199,13 +199,7 @@
     <string name="show_uploaded_playlist">显示“已上传”播放列表</string>
     <string name="discord_use_details">使用详细信息代替状态</string>
     <string name="discord_use_details_description">突出显示歌曲标题，而非音乐人名称</string>
-    <string name="updater">更新器</string>
-    <string name="check_for_updates">自动检查更新</string>
-    <string name="update_notifications">启用更新通知</string>
-    <string name="update_available_title">有可用更新</string>
-    <string name="update_channel_desc">新版本通知</string>
     <string name="audio_offload_description">开启省电播放模式。关闭后可能会增加耗电量，如果您遇到音频播放或后处理相关的问题，关闭它可能会有所帮助</string>
-    <string name="update_channel_name">应用更新</string>
     <string name="audio_offload">开启省电播放</string>
     <string name="integrations">集成</string>
     <string name="username">用户名</string>

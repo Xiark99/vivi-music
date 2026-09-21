@@ -6,7 +6,6 @@
 package com.music.vivi
 
 import android.app.Application
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.os.Build
@@ -24,6 +23,7 @@ import coil3.request.crossfade
 import com.music.innertube.YouTube
 import com.music.innertube.models.IpVersion
 import com.music.innertube.models.YouTubeLocale
+import com.metrolist.innertubex.models.YouTubeLocale as InnerTubeXLocale
 import com.music.kugou.KuGou
 import com.music.lastfm.LastFM
 import com.music.vivi.constants.*
@@ -55,6 +55,8 @@ import java.net.Proxy
 import java.util.Locale
 import javax.inject.Inject
 
+private const val LEGACY_UPDATE_NOTIFICATION_CHANNEL_ID = "updates"
+
 @HiltAndroidApp
 class App : Application(), SingletonImageLoader.Factory {
 
@@ -67,6 +69,8 @@ class App : Application(), SingletonImageLoader.Factory {
         super.onCreate()
         context = this
 
+        removeLegacyUpdateNotificationChannel()
+
         // Start preferences cache immediately
         ViviPrefCache.start(this)
 
@@ -75,6 +79,10 @@ class App : Application(), SingletonImageLoader.Factory {
 
         // Initialize InnerTubeX stream extractor
         InnerTubeXPlayer.initialize(this)
+
+        // Keep the stream extractor's player locale compatible with YouTube's supported values
+        // before asynchronous preference loading can begin.
+        applyYouTubeLocale()
 
         // Initialize cipher deobfuscator for WEB_REMIX streaming
         CipherDeobfuscator.initialize(this)
@@ -88,19 +96,23 @@ class App : Application(), SingletonImageLoader.Factory {
         }
     }
 
+    private fun removeLegacyUpdateNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // Notification channels survive app updates; deleting a missing channel is safe.
+            getSystemService(NotificationManager::class.java)
+                .deleteNotificationChannel(LEGACY_UPDATE_NOTIFICATION_CHANNEL_ID)
+        }
+    }
+
     private suspend fun initializeSettings() {
         val settings = dataStore.data.first()
         val locale = Locale.getDefault()
         val languageTag = locale.language
 
-        YouTube.locale = YouTubeLocale(
-            gl = settings[ContentCountryKey]?.takeIf { it != SYSTEM_DEFAULT }
-                ?: locale.country.takeIf { it in CountryCodeToName }
-                ?: "US",
-            hl = settings[ContentLanguageKey]?.takeIf { it != SYSTEM_DEFAULT }
-                ?: locale.language.takeIf { it in LanguageCodeToName }
-                ?: languageTag.takeIf { it in LanguageCodeToName }
-                ?: "en"
+        applyYouTubeLocale(
+            contentCountry = settings[ContentCountryKey],
+            contentLanguage = settings[ContentLanguageKey],
+            appLanguage = settings[AppLanguageKey],
         )
 
         if (languageTag == "zh-TW") {
@@ -143,15 +155,6 @@ class App : Application(), SingletonImageLoader.Factory {
         YouTube.useLoginForBrowse = settings[UseLoginForBrowse] ?: true
         YouTube.ipVersion = settings[IpVersionKey]?.toEnum(defaultValue = IpVersion.IPV4) ?: IpVersion.IPV4
 
-        val channel = NotificationChannel(
-            "updates",
-            getString(R.string.update_channel_name),
-            NotificationManager.IMPORTANCE_DEFAULT
-        ).apply {
-            description = getString(R.string.update_channel_desc)
-        }
-        val nm = getSystemService(NotificationManager::class.java)
-        nm.createNotificationChannel(channel)
     }
 
     private fun observeSettingsChanges() {
@@ -210,21 +213,10 @@ class App : Application(), SingletonImageLoader.Factory {
                 .map { Triple(it[ContentCountryKey], it[ContentLanguageKey], it[AppLanguageKey]) }
                 .distinctUntilChanged()
                 .collect { (contentCountry, contentLanguage, appLanguage) ->
-                    val systemLocale = Locale.getDefault()
-                    val effectiveAppLocale = appLanguage
-                        ?.takeUnless { it == SYSTEM_DEFAULT }
-                        ?.let { Locale.forLanguageTag(it) }
-                        ?: systemLocale
-
-                    YouTube.locale = YouTubeLocale(
-                        gl = contentCountry?.takeIf { it != SYSTEM_DEFAULT }
-                            ?: effectiveAppLocale.country.takeIf { it in CountryCodeToName }
-                            ?: systemLocale.country.takeIf { it in CountryCodeToName }
-                            ?: "US",
-                        hl = contentLanguage?.takeIf { it != SYSTEM_DEFAULT }
-                            ?: effectiveAppLocale.toLanguageTag().takeIf { it in LanguageCodeToName }
-                            ?: effectiveAppLocale.language.takeIf { it in LanguageCodeToName }
-                            ?: "en"
+                    applyYouTubeLocale(
+                        contentCountry = contentCountry,
+                        contentLanguage = contentLanguage,
+                        appLanguage = appLanguage,
                     )
                 }
         }
@@ -263,6 +255,30 @@ class App : Application(), SingletonImageLoader.Factory {
                     }
                 }
         }
+    }
+
+    private fun applyYouTubeLocale(
+        contentCountry: String? = null,
+        contentLanguage: String? = null,
+        appLanguage: String? = null,
+    ) {
+        val systemLocale = Locale.getDefault()
+        val configuredAppLocale = resources.configuration.locales[0] ?: systemLocale
+        val effectiveAppLocale = appLanguage
+            ?.takeUnless { it == SYSTEM_DEFAULT }
+            ?.let(Locale::forLanguageTag)
+            ?: configuredAppLocale
+        val country = contentCountry?.takeIf { it != SYSTEM_DEFAULT }
+            ?: effectiveAppLocale.country.takeIf { it in CountryCodeToName }
+            ?: systemLocale.country.takeIf { it in CountryCodeToName }
+            ?: "US"
+        val language = contentLanguage?.takeIf { it != SYSTEM_DEFAULT }
+            ?: effectiveAppLocale.toLanguageTag().takeIf { it in LanguageCodeToName }
+            ?: effectiveAppLocale.language.takeIf { it in LanguageCodeToName }
+            ?: "en"
+
+        YouTube.locale = YouTubeLocale(gl = country, hl = language)
+        InnerTubeXPlayer.setLocale(InnerTubeXLocale(gl = country, hl = language))
     }
 
     override fun newImageLoader(context: PlatformContext): ImageLoader {

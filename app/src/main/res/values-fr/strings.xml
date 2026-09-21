@@ -428,12 +428,9 @@
     <string name="enable_automatic_backup">Activer la sauvegarde automatique</string>
     <string name="weekly_backup">Sauvegarde hebdomadaire</string>
     <string name="weekly_backup_desc">Sauvegardez automatiquement vos données chaque semaine en arrière-plan.</string>
-    <string name="backup_before_update">Sauvegarde avant la mise à jour</string>
-    <string name="backup_before_update_desc">Sauvegardez automatiquement vos données avant de télécharger une mise à jour d\'application.</string>
     <string name="stored_backups">Sauvegardes archivées</string>
     <string name="no_stored_backups">Aucune sauvegarde automatique n\'a encore été enregistrée.</string>
     <string name="backup_type_weekly">Sauvegarde hebdomadaire</string>
-    <string name="backup_type_before_update">Avant la mise à jour</string>
     <string name="delete_backup_confirm">Êtes-vous sûr de vouloir supprimer cette sauvegarde ?</string>
     <string name="restore_backup_confirm">Êtes-vous sûr de vouloir restaurer cette sauvegarde ? L\'application va se fermer puis redémarrer pour appliquer les modifications.</string>
     <string name="backup_deleted">Sauvegarde supprimée avec succès</string>
@@ -458,4 +455,5 @@
     <string name="library_syncing">Synchronisation de la bibliothèque…</string>
     <string name="library_sync_done">La bibliothèque a été synchronisée avec succès</string>
     <string name="library_sync_error">Échec de la synchronisation — appuyez ici pour réessayer</string>
+    <string name="backup_type_before_update">Avant la mise à jour</string>
 </resources>

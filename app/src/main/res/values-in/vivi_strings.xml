@@ -201,10 +201,6 @@
     <string name="show_uploaded_playlist">Tampilkan playlist \"Diunggah\"</string>
     <string name="discord_use_details">Gunakan detail alih-alih status</string>
     <string name="discord_use_details_description">Tampilkan judul lagu secara menonjol alih-alih nama artis</string>
-    <string name="updater">Pembaruan</string>
-    <string name="check_for_updates">Periksa pembaruan secara otomatis</string>
-    <string name="update_notifications">Aktifkan notifikasi pembaruan</string>
-    <string name="update_available_title">Pembaruan tersedia</string>
     <string name="lyrics_romanize_macedonian">Romanisasi lirik Makedonia</string>
     <string name="integrations">Integrasi</string>
     <string name="lastfm_integration">Integrasi Last.fm</string>
@@ -214,8 +210,6 @@
     <string name="lastfm_now_playing">Kirim Now Playing</string>
     <string name="scrobbling_configuration">Atur Scrobbling</string>
     <string name="scrobble_min_track_duration">Scrobble lagu yang lebih lama dari</string>
-    <string name="update_channel_name">Pembaruan aplikasi</string>
-    <string name="update_channel_desc">Notifikasi tentang versi terbaru</string>
     <string name="scrobble_delay_minutes">Menit penundaan scrobble</string>
     <string name="scrobble_delay_percent">Persentase penundaan scrobble</string>
     <string name="swipe_song_to_remove">Geser lagu untuk menghapusnya dari playlist</string>

@@ -216,12 +216,6 @@
     <string name="show_uploaded_playlist">إظهار قائمة التشغيل \"المرفوعه\"</string>
     <string name="discord_use_details">استخدم التفاصيل بدلاً من الحالة</string>
     <string name="discord_use_details_description">إظهار عنوان الأغنية بشكل بارز بدلاً من أسماء الفنانين</string>
-    <string name="updater">التحديثات</string>
-    <string name="check_for_updates">التحقق تلقائيًا من التحديثات</string>
-    <string name="update_notifications">تمكين إشعارات التحديث</string>
-    <string name="update_available_title">التحديث متاح</string>
-    <string name="update_channel_name">تحديثات التطبيق</string>
-    <string name="update_channel_desc">إشعارات حول الإصدارات الجديدة</string>
     <string name="lyrics_romanize_macedonian">كلمات أغنية رومانية مقدونية</string>
     <string name="integrations">التكاملات</string>
     <string name="username">اسم المستخدم</string>

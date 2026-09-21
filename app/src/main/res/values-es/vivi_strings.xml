@@ -205,15 +205,9 @@
     <string name="uploaded_playlist">Subidas</string>
     <string name="filter_uploaded">Subido</string>
     <string name="show_uploaded_playlist">Mostrar lista de reproducción \"Subidas\"</string>
-    <string name="updater">Actualizador</string>
-    <string name="check_for_updates">Buscar actualizaciones automáticamente</string>
     <string name="lyrics_romanize_macedonian">Romanizar letras en macedonio</string>
     <string name="discord_use_details">Usar detalles en lugar de estado</string>
     <string name="discord_use_details_description">Mostrar el título de la canción de forma destacada en lugar de los nombres de los artistas</string>
-    <string name="update_notifications">Habilitar notificaciones de actualización</string>
-    <string name="update_available_title">Actualización disponible</string>
-    <string name="update_channel_name">Actualizaciones de la app</string>
-    <string name="update_channel_desc">Notificaciones sobre nuevas versiones</string>
     <string name="integrations">Integraciones</string>
     <string name="username">Nombre de usuario</string>
     <string name="password">Contraseña</string>

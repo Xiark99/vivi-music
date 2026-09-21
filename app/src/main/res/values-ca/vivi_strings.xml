@@ -222,12 +222,6 @@
     <string name="settings_section_player_content">Reproductor i Contingut</string>
     <string name="settings_section_storage">Emmagatzematge i Dades</string>
     <string name="settings_section_system">Sistema i Sobre</string>
-    <string name="updater">Actualitzador</string>
-    <string name="check_for_updates">Buscar actualitzacions automàticament</string>
-    <string name="update_notifications">Habilitar notificacions d\'actualització</string>
-    <string name="update_available_title">Actualització disponible</string>
-    <string name="update_channel_name">Actualitzacions de l\'aplicació</string>
-    <string name="update_channel_desc">Notificacions sobre les noves versions</string>
     <string name="audio_offload">Habilitar descàrrega (offload)</string>
     <string name="google_cast">Google Cast</string>
     <string name="google_cast_description">Habilitar la transmissió d\'àudio a Chromecast i altres dispositius compatibles amb Cast</string>

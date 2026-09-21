@@ -175,7 +175,5 @@
     <string name="settings_section_player_content">Reproduktor i sadržaj</string>
     <string name="settings_section_storage">Pohrana i podaci</string>
     <string name="settings_section_system">Sustav i o aplikaciji</string>
-    <string name="updater">Ažuriranja</string>
-    <string name="check_for_updates">Automatska provjera ažuriranja</string>
     <string name="integrations">Ugradnja</string>
 </resources>

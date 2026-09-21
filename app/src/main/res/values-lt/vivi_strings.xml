@@ -118,8 +118,6 @@
     <string name="delete_playlist_desc">Panaikinti grojaraštį visam laikui</string>
     <string name="sync_playlist_desc">Sinchronizuoti grojaraštį su YouTube Muzika</string>
     <string name="like">Pažymėti, kad patinka</string>
-    <string name="update_available_title">Galimas atnaujinimas</string>
-    <string name="update_channel_name">Programėlės naujinimai</string>
     <string name="turntable_widget_description">Greita prieiga prie labiausiai grojamo kūrinio</string>
     <string name="primary_color_style">Pirminė spalva</string>
     <string name="tertiary_color_style">Tretinė spalva</string>
@@ -143,8 +141,6 @@
     <string name="proxy_password">Proxy slaptažodis</string>
     <string name="enable_authentication">Įjungti autentifikavimą</string>
     <string name="eq_disabled">Išjungtas</string>
-    <string name="check_for_updates">Automatiškai tikrinti, ar yra atnaujinimų</string>
-    <string name="updater">Atnaujinimas</string>
     <string name="username">Vartotojo vardas</string>
     <string name="password">Slaptažodis</string>
     <string name="lastfm_integration">Last.fm integracija</string>
@@ -158,8 +154,6 @@
     <string name="settings_section_player_content">Grotuvas ir Turinys</string>
     <string name="settings_section_storage">Talpykla ir Duomenys</string>
     <string name="settings_section_system">Sistema ir Apie</string>
-    <string name="update_notifications">Įjungti pranešimus apie atnaujinimus</string>
-    <string name="update_channel_desc">Pranešimai apie naujas versijas</string>
     <string name="audio_offload">Įjungti perkėlimą</string>
     <string name="audio_offload_description">Naudoti kitą garso atkūrimo metodą. Išjungiant šį nustatymą gali padidėti baterijos sąnaudos, tačiau gali būti naudinga, jei patiriate problemų su garso atkūrimu arba garso apdorojimu</string>
     <string name="google_cast">„Google Cast”</string>
