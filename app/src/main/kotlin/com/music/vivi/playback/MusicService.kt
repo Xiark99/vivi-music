@@ -2596,8 +2596,10 @@ class MusicService :
      * Media3 can resolve an upcoming item while another item remains current. For a muxed source
      * that is fine because the source itself already contains video. A DASH route, however, needs
      * a main-thread source replacement and was previously discarded in that preloading window.
-     * Recreate only the newly-current item once, so AUTO, SEEK, REPEAT and shuffle use the same
-     * resolver/install path as an explicit manual next.
+     * Recreate only a confirmed video item once, so AUTO, SEEK, REPEAT and shuffle use the same
+     * resolver/install path as an explicit manual next. Unknown items keep their current audio
+     * source until the resolver has confirmed OMV/UGC; otherwise an Art Track can be restarted
+     * merely because its queue metadata arrived late.
      */
     private fun handleCurrentMediaChanged(mediaItem: MediaItem, reason: Int) {
         val mediaId = mediaItem.mediaId
@@ -2613,6 +2615,9 @@ class MusicService :
         } else if (!shouldAttemptVideoFor(mediaItem)) {
             pendingCurrentVideoRouteActivation = null
             action = "KEEP_AUDIO_ONLY"
+        } else if (!isConfirmedMusicVideoTrack(mediaItem)) {
+            pendingCurrentVideoRouteActivation = null
+            action = "KEEP_CURRENT_SOURCE_UNTIL_VIDEO_CONFIRMED"
         } else if (hasCurrentVideoRoute(mediaItem)) {
             pendingCurrentVideoRouteActivation = null
             videoPlaybackRequestedMediaId.value = mediaId
@@ -4064,11 +4069,15 @@ class MusicService :
         val current = player.currentMediaItem
         val mediaId = originalItem.mediaId
         val index = player.currentMediaItemIndex
-        if (current?.mediaId != mediaId ||
+        if (current == null ||
+            current.mediaId != mediaId ||
             current.localConfiguration != originalItem.localConfiguration ||
             index !in 0 until player.mediaItemCount ||
             player.getMediaItemAt(index).mediaId != mediaId ||
             !shouldAttemptVideoFor(originalItem) ||
+            !isConfirmedMusicVideoTrack(originalItem) ||
+            resolvedMusicVideoTypes[mediaId] != route.musicVideoType ||
+            hasCurrentVideoRoute(current) ||
             dashRoutes[sourceInstanceId] !== route
         ) {
             dashRoutes.remove(sourceInstanceId, route)
@@ -5080,6 +5089,11 @@ class MusicService :
     private fun isKnownAudioTrack(mediaItem: MediaItem): Boolean =
         mediaItem.metadata?.musicVideoType == MUSIC_VIDEO_TYPE_ATV ||
             resolvedMusicVideoTypes[mediaItem.mediaId] == MUSIC_VIDEO_TYPE_ATV
+
+    /** A transition may recreate its source only after queue metadata or a resolver proved video. */
+    private fun isConfirmedMusicVideoTrack(mediaItem: MediaItem): Boolean =
+        resolvedMusicVideoTypes[mediaItem.mediaId] in ACTUAL_MUSIC_VIDEO_TYPES ||
+            mediaItem.metadata?.musicVideoType in ACTUAL_MUSIC_VIDEO_TYPES
 
     /**
      * Video uses an uncached resolving data source. It never changes the existing audio resolver,
