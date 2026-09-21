@@ -3934,29 +3934,33 @@ class MusicService :
                             "[VideoPlayback][route] mediaId=$mediaId sourceInstance=$instance " +
                                 "routeResolverStart=true",
                         )
-                        val route = try {
+                        // Prefer VISIONOS adaptive DASH. A usable DASH route avoids the otherwise
+                        // unnecessary WEB progressive probe for confirmed music videos.
+                        val dashResolution = try {
                             runBlocking(Dispatchers.IO) {
-                                InnerTubeXPlayer.resolveMuxed360(mediaId, mediaItem.metadata?.musicVideoType)
+                                InnerTubeXPlayer.resolveDash360(mediaId, mediaItem.metadata?.musicVideoType)
                             }
                         } catch (error: Exception) {
-                            // Do not expose signed URLs or request headers in resolver diagnostics.
-                            Timber.tag(TAG).w("[VideoPlayback][route] mediaId=$mediaId muxed unavailable errorType=${error.javaClass.simpleName}")
-                            null
+                            // Unknown and ATV tracks fail closed to the original audio resolver.
+                            Timber.tag(TAG).w("[VideoPlayback][dash] mediaId=$mediaId unavailable errorType=${error.javaClass.simpleName}")
+                            InnerTubeXPlayer.DashResolution(mediaItem.metadata?.musicVideoType, null)
                         }
-                        route?.musicVideoType?.let { resolvedMusicVideoTypes[mediaId] = it }
-                        val stream = route?.stream
-                        val dashRoute = if (stream == null && route?.musicVideoType in ACTUAL_MUSIC_VIDEO_TYPES &&
+                        dashResolution.musicVideoType?.let { resolvedMusicVideoTypes[mediaId] = it }
+                        val dashRoute = dashResolution.route
+
+                        // WEB progressive is a fallback exclusively for a VISIONOS-confirmed
+                        // OMV/UGC that has no usable DASH route. ATV and unknown stay audio-only.
+                        val muxedRoute = if (dashRoute == null &&
+                            dashResolution.musicVideoType in ACTUAL_MUSIC_VIDEO_TYPES &&
                             shouldAttemptVideoFor(mediaItem)
                         ) {
                             try {
                                 runBlocking(Dispatchers.IO) {
-                                    InnerTubeXPlayer.resolveDash360(mediaId, route?.musicVideoType)
+                                    InnerTubeXPlayer.resolveMuxed360(mediaId, dashResolution.musicVideoType)
                                 }
                             } catch (error: Exception) {
-                                // Raw response parsing and cipher resolution must fail closed to the
-                                // original audio path; keep sensitive stream details out of logs.
                                 Timber.tag(TAG).w(
-                                    "[VideoPlayback][dash] mediaId=$mediaId unavailable " +
+                                    "[VideoPlayback][route] mediaId=$mediaId muxed unavailable " +
                                         "errorType=${error.javaClass.simpleName}",
                                 )
                                 null
@@ -3964,8 +3968,9 @@ class MusicService :
                         } else {
                             null
                         }
-                        dashRoute?.musicVideoType?.let { resolvedMusicVideoTypes[mediaId] = it }
-                        if (stream == null && dashRoute != null && shouldAttemptVideoFor(mediaItem)) {
+                        muxedRoute?.musicVideoType?.let { resolvedMusicVideoTypes[mediaId] = it }
+                        val stream = muxedRoute?.stream
+                        if (dashRoute != null && shouldAttemptVideoFor(mediaItem)) {
                             dashRoutes[instance] = dashRoute
                             scope.launch {
                                 installSideloadedDashRoute(mediaItem, instance, dashRoute)
@@ -3990,7 +3995,7 @@ class MusicService :
                                 itag = stream.itag
                             }
                             Timber.tag(TAG).i(
-                                "[VideoPlayback][route] mediaId=$mediaId musicVideoType=${route.musicVideoType} " +
+                                "[VideoPlayback][route] mediaId=$mediaId musicVideoType=${muxedRoute?.musicVideoType} " +
                                     "route=SINGLE_MUXED_VIDEO itag=${stream.itag} mime=${stream.mimeType} " +
                                     "codecs=${stream.codecs} audioCodec=${stream.codecs?.split(',')?.firstOrNull { it.trim().startsWith("mp4a") }?.trim()} " +
                                     "width=${stream.width} height=${stream.height} bitrate=${stream.bitrate}",

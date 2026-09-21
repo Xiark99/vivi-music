@@ -190,6 +190,12 @@ object InnerTubeXPlayer {
         val durationMs: Long,
     )
 
+    /** Carries classification even when VISIONOS has no usable DASH formats. */
+    data class DashResolution(
+        val musicVideoType: String?,
+        val route: DashRoute?,
+    )
+
     /** Separate experiment: never changes extract()'s audio format selection. */
     suspend fun resolveMuxed360(videoId: String, knownType: String?): MuxedRoute {
         var type = knownType
@@ -277,16 +283,16 @@ object InnerTubeXPlayer {
 
     /**
      * Resolves one audio and one 360p video adaptive format into a single-period sideloaded DASH
-     * route. This is called only after the progressive muxed path returned no stream.
+     * route. Its classification lets callers use WEB only as a confirmed-video fallback.
      */
-    suspend fun resolveDash360(videoId: String, knownType: String?): DashRoute? {
+    suspend fun resolveDash360(videoId: String, knownType: String?): DashResolution {
         var type = knownType
-        if (type == "MUSIC_VIDEO_TYPE_ATV") return null
+        if (type == "MUSIC_VIDEO_TYPE_ATV") return DashResolution(type, null)
         if (type !in ACTUAL_VIDEO_TYPES) {
             type = YTPlayerUtils.playerResponseForMetadata(videoId, null).getOrNull()
                 ?.videoDetails?.musicVideoType
         }
-        if (type !in ACTUAL_VIDEO_TYPES) return null
+        if (type !in ACTUAL_VIDEO_TYPES) return DashResolution(type, null)
 
         val extraction = bundle()
         val config = extraction.configParser.fetchConfig(videoId, false)
@@ -305,7 +311,9 @@ object InnerTubeXPlayer {
             encryptedHostFlags = config.encryptedHostFlags,
         ).body<JsonObject>()
         val responseType = response["videoDetails"]?.jsonObject?.string("musicVideoType") ?: type
-        if (responseType == "MUSIC_VIDEO_TYPE_ATV" || responseType !in ACTUAL_VIDEO_TYPES) return null
+        if (responseType == "MUSIC_VIDEO_TYPE_ATV" || responseType !in ACTUAL_VIDEO_TYPES) {
+            return DashResolution(responseType, null)
+        }
         val actualMusicVideoType = requireNotNull(responseType)
         val adaptiveFormats = response["streamingData"]?.jsonObject
             ?.get("adaptiveFormats")?.jsonArray.orEmpty().mapNotNull { it as? JsonObject }
@@ -333,15 +341,31 @@ object InnerTubeXPlayer {
                 "selectedVideo=$selectedVideoItag selectedAudio=$selectedAudioItag",
         )
         logDashVideoFormatDiagnostics(videoId, actualMusicVideoType, client.clientName, videoFormats)
-        if (video == null || audio == null) return null
-        val resolvedVideo = resolveDashStream(extraction, config.playerUrl, null, client, video) ?: return null
-        val resolvedAudio = resolveDashStream(extraction, config.playerUrl, null, client, audio) ?: return null
-        val durationMs = (video.approxDurationMs ?: audio.approxDurationMs)?.takeIf { it > 0L } ?: return null
-        return DashRoute(
+        if (video == null || audio == null) return DashResolution(actualMusicVideoType, null)
+        val resolvedVideo = try {
+            resolveDashStream(extraction, config.playerUrl, null, client, video)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            null
+        } ?: return DashResolution(actualMusicVideoType, null)
+        val resolvedAudio = try {
+            resolveDashStream(extraction, config.playerUrl, null, client, audio)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            null
+        } ?: return DashResolution(actualMusicVideoType, null)
+        val durationMs = (video.approxDurationMs ?: audio.approxDurationMs)?.takeIf { it > 0L }
+            ?: return DashResolution(actualMusicVideoType, null)
+        return DashResolution(
             musicVideoType = actualMusicVideoType,
-            video = resolvedVideo,
-            audio = resolvedAudio,
-            durationMs = durationMs,
+            route = DashRoute(
+                musicVideoType = actualMusicVideoType,
+                video = resolvedVideo,
+                audio = resolvedAudio,
+                durationMs = durationMs,
+            ),
         )
     }
 
