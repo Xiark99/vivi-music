@@ -370,6 +370,8 @@ class MusicService :
     private val videoRouteReplacementSequence = java.util.concurrent.atomic.AtomicLong()
     /** Guards one forced current-item route resolution; it is cleared after a real route is made. */
     private var pendingCurrentVideoRouteActivation: CurrentVideoRouteActivation? = null
+    /** One guarded rebuild after a transient current-source identity change; never retries a loop. */
+    private var sourceIdentityRecovery: SourceIdentityRecovery? = null
     /** A single startup retry is permitted for one merged source, never for audio-only playback. */
     private var videoAutoRetryMediaId: String? = null
     /** The queue index makes a hard source replacement distinct from an actual queue transition. */
@@ -391,6 +393,12 @@ class MusicService :
         val mediaId: String,
         val mediaItemIndex: Int,
         val sourceUri: String?,
+    )
+
+    private data class SourceIdentityRecovery(
+        val mediaId: String,
+        val mediaItemIndex: Int,
+        val oldSourceInstanceId: Long,
     )
 
     private data class VideoStreamRequest(
@@ -780,7 +788,7 @@ class MusicService :
             val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle(getString(R.string.music_player))
                 .setContentText("")
-                .setSmallIcon(R.drawable.vivimusicnotification)  //vivimusicnotification
+                .setSmallIcon(R.drawable.ic_notification_nami)
                 .setContentIntent(pending)
                 .setOngoing(true)
                 .build()
@@ -798,7 +806,7 @@ class MusicService :
                 R.string.music_player
             )
                 .apply {
-                    setSmallIcon(R.drawable.vivimusicnotification)
+                    setSmallIcon(R.drawable.ic_notification_nami)
                 },
         )
         // Read these once before the player/factory can be used. The ongoing collector below
@@ -2584,6 +2592,117 @@ class MusicService :
     private fun mediaSourceUri(mediaItem: MediaItem): String? =
         mediaItem.localConfiguration?.uri?.toString()
 
+    private fun videoRouteName(mediaId: String?): String =
+        mediaId?.let(videoPlaybackRoutes::get)?.name ?: "AUDIO_ONLY_OPUS"
+
+    /**
+     * Correlates a route decision with the primary player's state without exposing stream URLs.
+     * This is diagnostic-only: it does not mutate routing, resolver, fallback, or player state.
+     */
+    private fun logVideoRouteDiag(
+        event: String,
+        mediaItem: MediaItem? = null,
+        mediaId: String? = mediaItem?.mediaId ?: player.currentMediaItem?.mediaId,
+        musicVideoType: String? = null,
+        resolverStart: Boolean? = null,
+        resolverResult: String? = null,
+        noDashReason: String? = null,
+        sourceInstanceId: Long? = null,
+        installAttempted: Boolean? = null,
+        installAccepted: Boolean? = null,
+        installDiscarded: Boolean? = null,
+        discardReason: String? = null,
+        recoveryOldSourceInstanceId: Long? = null,
+        recoveryNewSourceInstanceId: Long? = null,
+        recoveryResult: String? = null,
+        reason: String? = null,
+        routeBefore: String? = null,
+        routeAfter: String? = null,
+    ) {
+        val current = player.currentMediaItem
+        val targetItem = mediaItem ?: current
+        val targetMediaId = mediaId ?: targetItem?.mediaId
+        val instance = sourceInstanceId ?: targetMediaId?.let(videoSourceInstanceIds::get)
+        val resolvedType = targetMediaId?.let(resolvedMusicVideoTypes::get)
+        val type = musicVideoType ?: resolvedType ?: targetItem?.metadata?.musicVideoType
+        val targetUriScheme = targetItem?.localConfiguration?.uri?.scheme ?: "none"
+        val currentUriScheme = current?.localConfiguration?.uri?.scheme ?: "none"
+        val sourceIdentityMatchesCurrent = if (mediaItem == null) {
+            "not_checked"
+        } else {
+            (mediaItem.localConfiguration == current?.localConfiguration).toString()
+        }
+        Timber.tag(TAG).i(
+            "[VideoRouteDiag] event=$event mediaId=${targetMediaId ?: "none"} " +
+                "currentMediaId=${current?.mediaId ?: "none"} index=${player.currentMediaItemIndex} " +
+                "musicVideoType=${type ?: "unknown"} eligible=${targetItem?.let(::shouldAttemptVideoFor) ?: false} " +
+                "requestedVideoMediaId=${videoPlaybackRequestedMediaId.value ?: "none"} " +
+                "activeVideoMediaId=${videoPlaybackActiveMediaId.value ?: "none"} " +
+                "currentRoute=${videoRouteName(targetMediaId)} resolverStart=${resolverStart ?: false} " +
+                "resolverResult=${resolverResult ?: "not_recorded"} noDashReason=${noDashReason ?: "none"} " +
+                "sourceInstance=${instance ?: "none"} dashRoutePresent=${instance?.let(dashRoutes::containsKey) ?: false} " +
+                "videoSourcePresent=${targetMediaId?.let(videoSourceMediaIds::contains) ?: false} " +
+                "fallbackPresent=${targetMediaId?.let(videoFallbackMediaIds::contains) ?: false} " +
+                "uriScheme=$targetUriScheme currentUriScheme=$currentUriScheme " +
+                "sourceIdentityMatchesCurrent=$sourceIdentityMatchesCurrent " +
+                "installAttempted=${installAttempted ?: false} installAccepted=${installAccepted ?: false} " +
+                "installDiscarded=${installDiscarded ?: false} discardReason=${discardReason ?: "none"} " +
+                "recoveryOldSourceInstance=${recoveryOldSourceInstanceId ?: "none"} " +
+                "recoveryNewSourceInstance=${recoveryNewSourceInstanceId ?: "pending"} " +
+                "recoveryResult=${recoveryResult ?: "not_applicable"} " +
+                "reason=${reason ?: "none"} routeBefore=${routeBefore ?: videoRouteName(targetMediaId)} " +
+                "routeAfter=${routeAfter ?: videoRouteName(targetMediaId)}",
+        )
+    }
+
+    /** Resolver callbacks run on a Loader thread; capture the player-state diagnostic on main. */
+    private fun postVideoRouteDiag(
+        event: String,
+        mediaItem: MediaItem,
+        musicVideoType: String? = null,
+        resolverStart: Boolean? = null,
+        resolverResult: String? = null,
+        noDashReason: String? = null,
+        sourceInstanceId: Long? = null,
+        installAttempted: Boolean? = null,
+        reason: String? = null,
+        routeBefore: String? = null,
+        routeAfter: String? = null,
+    ) {
+        scope.launch {
+            logVideoRouteDiag(
+                event = event,
+                mediaItem = mediaItem,
+                musicVideoType = musicVideoType,
+                resolverStart = resolverStart,
+                resolverResult = resolverResult,
+                noDashReason = noDashReason,
+                sourceInstanceId = sourceInstanceId,
+                installAttempted = installAttempted,
+                reason = reason,
+                routeBefore = routeBefore,
+                routeAfter = routeAfter,
+            )
+        }
+    }
+
+    private fun postSourceIdentityRecoveryResolverStarted(mediaItem: MediaItem, sourceInstanceId: Long) {
+        scope.launch {
+            val recovery = sourceIdentityRecovery
+            if (recovery == null || recovery.mediaId != mediaItem.mediaId ||
+                recovery.mediaItemIndex != player.currentMediaItemIndex
+            ) return@launch
+            logVideoRouteDiag(
+                event = "sourceIdentityRecoveryResolverStarted",
+                mediaItem = mediaItem,
+                sourceInstanceId = sourceInstanceId,
+                recoveryOldSourceInstanceId = recovery.oldSourceInstanceId,
+                recoveryNewSourceInstanceId = sourceInstanceId,
+                recoveryResult = "NEW_SOURCE_RESOLVER_STARTED",
+            )
+        }
+    }
+
     /** True only when the source selected for this exact queue item is already a video route. */
     private fun hasCurrentVideoRoute(mediaItem: MediaItem): Boolean {
         val mediaId = mediaItem.mediaId
@@ -2651,6 +2770,13 @@ class MusicService :
                     "newMediaId=$mediaId index=$index reason=$reasonName videoRequested=$requestedBefore " +
                     "routeBefore=$routeBefore action=REBUILD_CURRENT_ROUTE position=$position",
             )
+            logVideoRouteDiag(
+                event = "transitionRouteRebuild",
+                mediaItem = mediaItem,
+                reason = "CONFIRMED_VIDEO_WITHOUT_CURRENT_ROUTE",
+                routeBefore = routeBefore,
+                routeAfter = "AUDIO_ONLY_OPUS_PENDING_RESOLVER",
+            )
             player.replaceMediaItem(index, routingItem)
             player.prepare()
             player.seekTo(index, position)
@@ -2663,12 +2789,30 @@ class MusicService :
                 "newMediaId=$mediaId index=$index reason=$reasonName videoRequested=$requestedBefore " +
                 "routeBefore=$routeBefore action=$action",
         )
+        logVideoRouteDiag(
+            event = "transitionDecision",
+            mediaItem = mediaItem,
+            reason = action,
+            routeBefore = routeBefore,
+        )
     }
 
     override fun onMediaItemTransition(
         mediaItem: MediaItem?,
         reason: Int,
     ) {
+        sourceIdentityRecovery?.let { recovery ->
+            if (mediaItem?.mediaId != recovery.mediaId ||
+                player.currentMediaItemIndex != recovery.mediaItemIndex
+            ) {
+                sourceIdentityRecovery = null
+            }
+        }
+        logVideoRouteDiag(
+            event = "mediaItemTransitionReceived",
+            mediaItem = mediaItem,
+            reason = transitionReasonName(reason),
+        )
         cancelVideoStallWatchdog("media item changed")
         if (mediaItem?.mediaId != videoAutoRetryMediaId ||
             player.currentMediaItemIndex != videoAutoRetryMediaItemIndex
@@ -3934,6 +4078,14 @@ class MusicService :
             override fun createMediaSource(mediaItem: MediaItem): MediaSource {
                 val dashRoute = dashRouteFor(mediaItem)
                 if (dashRoute != null && allowVideo && shouldAttemptVideoFor(mediaItem)) {
+                    logVideoRouteDiag(
+                        event = "sideloadedDashSourceCreate",
+                        mediaItem = mediaItem,
+                        musicVideoType = dashRoute.second.musicVideoType,
+                        resolverResult = "DASH_ROUTE_ALREADY_INSTALLED",
+                        sourceInstanceId = dashRoute.first,
+                        routeAfter = "DASH",
+                    )
                     return createSideloadedDashMediaSource(
                         mediaItem = mediaItem,
                         sourceInstanceId = dashRoute.first,
@@ -3942,6 +4094,13 @@ class MusicService :
                     )
                 }
                 if (!allowVideo || !shouldAttemptVideoFor(mediaItem)) {
+                    logVideoRouteDiag(
+                        event = "audioOnlySelected",
+                        mediaItem = mediaItem,
+                        reason = if (!allowVideo) "VIDEO_NOT_ALLOWED_FOR_PLAYER" else
+                            "ELIGIBILITY_${videoEligibilityBlockedReason(mediaItem) ?: "UNKNOWN"}",
+                        routeAfter = "AUDIO_ONLY_OPUS",
+                    )
                     return audioFactory.createMediaSource(mediaItem)
                 }
                 val mediaId = mediaItem.mediaId
@@ -3957,6 +4116,14 @@ class MusicService :
                             "[VideoPlayback][route] mediaId=$mediaId sourceInstance=$instance " +
                                 "routeResolverStart=true",
                         )
+                        postVideoRouteDiag(
+                            event = "resolverStarted",
+                            mediaItem = mediaItem,
+                            sourceInstanceId = instance,
+                            resolverStart = true,
+                            routeBefore = "AUDIO_ONLY_OPUS",
+                        )
+                        postSourceIdentityRecoveryResolverStarted(mediaItem, instance)
                         // Prefer VISIONOS adaptive DASH. A usable DASH route avoids the otherwise
                         // unnecessary WEB progressive probe for confirmed music videos.
                         val dashResolution = try {
@@ -3966,28 +4133,56 @@ class MusicService :
                         } catch (error: Exception) {
                             // Unknown and ATV tracks fail closed to the original audio resolver.
                             Timber.tag(TAG).w("[VideoPlayback][dash] mediaId=$mediaId unavailable errorType=${error.javaClass.simpleName}")
-                            InnerTubeXPlayer.DashResolution(mediaItem.metadata?.musicVideoType, null)
+                            InnerTubeXPlayer.DashResolution(
+                                mediaItem.metadata?.musicVideoType,
+                                null,
+                                "DASH_RESOLVE_EXCEPTION_${error.javaClass.simpleName}",
+                            )
                         }
                         dashResolution.musicVideoType?.let { resolvedMusicVideoTypes[mediaId] = it }
                         val dashRoute = dashResolution.route
+                        postVideoRouteDiag(
+                            event = "dashResolveCompleted",
+                            mediaItem = mediaItem,
+                            musicVideoType = dashResolution.musicVideoType,
+                            sourceInstanceId = instance,
+                            resolverStart = true,
+                            resolverResult = if (dashRoute != null) "DASH_ROUTE_READY" else "DASH_RESOLVE_NULL",
+                            noDashReason = dashResolution.noDashReason,
+                        )
 
                         // WEB progressive is a fallback exclusively for a VISIONOS-confirmed
                         // OMV/UGC that has no usable DASH route. ATV and unknown stay audio-only.
+                        var muxedNoRouteReason: String? = null
                         val muxedRoute = if (dashRoute == null &&
                             dashResolution.musicVideoType in ACTUAL_MUSIC_VIDEO_TYPES &&
                             shouldAttemptVideoFor(mediaItem)
                         ) {
-                            try {
+                            postVideoRouteDiag(
+                                event = "muxedResolverStarted",
+                                mediaItem = mediaItem,
+                                musicVideoType = dashResolution.musicVideoType,
+                                sourceInstanceId = instance,
+                                resolverStart = true,
+                                resolverResult = "DASH_UNAVAILABLE_TRYING_MUXED",
+                                noDashReason = dashResolution.noDashReason,
+                            )
+                            val result = try {
                                 runBlocking(Dispatchers.IO) {
                                     InnerTubeXPlayer.resolveMuxed360(mediaId, dashResolution.musicVideoType)
                                 }
                             } catch (error: Exception) {
+                                muxedNoRouteReason = "MUXED_RESOLVE_EXCEPTION_${error.javaClass.simpleName}"
                                 Timber.tag(TAG).w(
                                     "[VideoPlayback][route] mediaId=$mediaId muxed unavailable " +
                                         "errorType=${error.javaClass.simpleName}",
                                 )
                                 null
                             }
+                            if (result?.stream == null && muxedNoRouteReason == null) {
+                                muxedNoRouteReason = "MUXED_RESOLVE_NULL"
+                            }
+                            result
                         } else {
                             null
                         }
@@ -3995,6 +4190,15 @@ class MusicService :
                         val stream = muxedRoute?.stream
                         if (dashRoute != null && shouldAttemptVideoFor(mediaItem)) {
                             dashRoutes[instance] = dashRoute
+                            postVideoRouteDiag(
+                                event = "dashInstallQueued",
+                                mediaItem = mediaItem,
+                                musicVideoType = dashResolution.musicVideoType,
+                                sourceInstanceId = instance,
+                                resolverStart = true,
+                                resolverResult = "DASH_ROUTE_READY",
+                                installAttempted = true,
+                            )
                             scope.launch {
                                 installSideloadedDashRoute(mediaItem, instance, dashRoute)
                             }
@@ -4003,6 +4207,24 @@ class MusicService :
                             // existing audio resolver/cache/Opus selection for the fallback path.
                             null
                         } else if (stream == null || !shouldAttemptVideoFor(mediaItem)) {
+                            postVideoRouteDiag(
+                                event = "audioOnlySelected",
+                                mediaItem = mediaItem,
+                                musicVideoType = muxedRoute?.musicVideoType ?: dashResolution.musicVideoType,
+                                sourceInstanceId = instance,
+                                resolverStart = true,
+                                resolverResult = if (stream == null) "NO_VIDEO_STREAM" else "VIDEO_STREAM_AVAILABLE_BUT_BLOCKED",
+                                noDashReason = dashResolution.noDashReason,
+                                reason = when {
+                                    !shouldAttemptVideoFor(mediaItem) ->
+                                        "ELIGIBILITY_${videoEligibilityBlockedReason(mediaItem) ?: "CHANGED_AFTER_RESOLVE"}"
+                                    dashRoute == null && muxedRoute == null ->
+                                        muxedNoRouteReason ?: dashResolution.noDashReason ?: "DASH_AND_MUXED_UNAVAILABLE"
+                                    else -> "MUXED_STREAM_MISSING"
+                                },
+                                routeBefore = "AUDIO_ONLY_OPUS",
+                                routeAfter = "AUDIO_ONLY_OPUS",
+                            )
                             null // Original audio resolver/cache/quality selection, never muxed AAC.
                         } else {
                             isMuxed.set(true)
@@ -4023,6 +4245,16 @@ class MusicService :
                                     "codecs=${stream.codecs} audioCodec=${stream.codecs?.split(',')?.firstOrNull { it.trim().startsWith("mp4a") }?.trim()} " +
                                     "width=${stream.width} height=${stream.height} bitrate=${stream.bitrate}",
                             )
+                            postVideoRouteDiag(
+                                event = "muxedRouteSelected",
+                                mediaItem = mediaItem,
+                                musicVideoType = muxedRoute?.musicVideoType,
+                                sourceInstanceId = instance,
+                                resolverStart = true,
+                                resolverResult = "MUXED_ROUTE_READY",
+                                noDashReason = dashResolution.noDashReason,
+                                routeAfter = "MUXED",
+                            )
                             scope.launch {
                                 val current = player.currentMediaItem
                                 if (current?.mediaId == mediaId &&
@@ -4030,12 +4262,45 @@ class MusicService :
                                     videoSourceInstanceIds[mediaId] == instance
                                 ) {
                                     if (!shouldAttemptVideoFor(mediaItem)) {
+                                        logVideoRouteDiag(
+                                            event = "muxedActivationDiscarded",
+                                            mediaItem = mediaItem,
+                                            sourceInstanceId = instance,
+                                            resolverResult = "MUXED_ROUTE_READY",
+                                            installDiscarded = true,
+                                            discardReason = "ELIGIBILITY_${videoEligibilityBlockedReason(mediaItem) ?: "CHANGED"}",
+                                        )
                                         rebuildCurrentAsAudioOnly("muxed route disabled", false, expectedMediaId = mediaId)
                                     } else {
                                         pendingCurrentVideoRouteActivation = null
                                         videoPlaybackRequestedMediaId.value = mediaId
+                                        val recovery = sourceIdentityRecovery?.takeIf {
+                                            it.mediaId == mediaId &&
+                                                it.mediaItemIndex == player.currentMediaItemIndex
+                                        }
+                                        logVideoRouteDiag(
+                                            event = "muxedActivationAccepted",
+                                            mediaItem = mediaItem,
+                                            sourceInstanceId = instance,
+                                            resolverResult = "MUXED_ROUTE_READY",
+                                            installAccepted = true,
+                                            recoveryOldSourceInstanceId = recovery?.oldSourceInstanceId,
+                                            recoveryNewSourceInstanceId = recovery?.let { instance },
+                                            recoveryResult = recovery?.let { "MUXED_SOURCE_ACTIVATED" },
+                                            routeAfter = "MUXED",
+                                        )
+                                        if (recovery != null) sourceIdentityRecovery = null
                                         maybeArmVideoStallWatchdog("muxedResolved")
                                     }
+                                } else {
+                                    logVideoRouteDiag(
+                                        event = "muxedActivationDiscarded",
+                                        mediaItem = mediaItem,
+                                        sourceInstanceId = instance,
+                                        resolverResult = "MUXED_ROUTE_READY",
+                                        installDiscarded = true,
+                                        discardReason = "CURRENT_ITEM_OR_SOURCE_IDENTITY_MISMATCH",
+                                    )
                                 }
                             }
                             DataSpec.Builder().setUri(stream.streamUrl).setKey("video:$instance:$mediaId")
@@ -4086,6 +4351,94 @@ class MusicService :
     }
 
     /**
+     * A resolver result remains tied to its original source identity. If Media3 replaces that
+     * source while the resolver is in flight, discard the stale route and rebuild from the current
+     * item once instead of relaxing the identity guard or installing the stale route directly.
+     */
+    private fun recoverFromDashSourceIdentityMismatch(
+        originalItem: MediaItem,
+        oldSourceInstanceId: Long,
+        route: InnerTubeXPlayer.DashRoute,
+    ): Boolean {
+        val current = player.currentMediaItem
+        val mediaId = originalItem.mediaId
+        val index = player.currentMediaItemIndex
+        if (current == null) {
+            logVideoRouteDiag(
+                event = "sourceIdentityRecoveryRejected",
+                mediaItem = originalItem,
+                musicVideoType = route.musicVideoType,
+                sourceInstanceId = oldSourceInstanceId,
+                recoveryOldSourceInstanceId = oldSourceInstanceId,
+                recoveryResult = "REBUILD_REJECTED",
+                reason = "CURRENT_ITEM_MISSING",
+            )
+            return false
+        }
+        val priorRecovery = sourceIdentityRecovery
+        val rejectionReason = when {
+            current.mediaId != mediaId -> "CURRENT_MEDIA_ID_MISMATCH"
+            index !in 0 until player.mediaItemCount -> "CURRENT_INDEX_INVALID"
+            player.getMediaItemAt(index).mediaId != mediaId -> "QUEUE_ITEM_MEDIA_ID_MISMATCH"
+            current.localConfiguration == originalItem.localConfiguration -> "SOURCE_IDENTITY_NO_LONGER_CHANGED"
+            !shouldAttemptVideoFor(current) ->
+                "ELIGIBILITY_${videoEligibilityBlockedReason(current) ?: "CHANGED"}"
+            !isConfirmedMusicVideoTrack(current) -> "VIDEO_TYPE_NOT_CONFIRMED"
+            resolvedMusicVideoTypes[mediaId] != route.musicVideoType -> "RESOLVED_TYPE_ROUTE_TYPE_MISMATCH"
+            mediaId in videoFallbackMediaIds -> "VIDEO_FALLBACK"
+            hasCurrentVideoRoute(current) -> "VIDEO_SOURCE_ALREADY_INSTALLED"
+            priorRecovery?.mediaId == mediaId && priorRecovery.mediaItemIndex == index ->
+                "RECOVERY_ALREADY_ATTEMPTED"
+            else -> null
+        }
+        if (rejectionReason != null) {
+            logVideoRouteDiag(
+                event = "sourceIdentityRecoveryRejected",
+                mediaItem = current,
+                musicVideoType = route.musicVideoType,
+                sourceInstanceId = oldSourceInstanceId,
+                recoveryOldSourceInstanceId = oldSourceInstanceId,
+                recoveryResult = "REBUILD_REJECTED",
+                reason = rejectionReason,
+            )
+            return false
+        }
+
+        sourceIdentityRecovery = SourceIdentityRecovery(mediaId, index, oldSourceInstanceId)
+        if (pendingCurrentVideoRouteActivation?.let {
+                it.mediaId == mediaId && it.mediaItemIndex == index
+            } == true
+        ) {
+            pendingCurrentVideoRouteActivation = null
+        }
+        logVideoRouteDiag(
+            event = "sourceIdentityRecoveryStarted",
+            mediaItem = current,
+            musicVideoType = route.musicVideoType,
+            sourceInstanceId = oldSourceInstanceId,
+            recoveryOldSourceInstanceId = oldSourceInstanceId,
+            recoveryResult = "CURRENT_SOURCE_REBUILD_REQUESTED",
+            reason = "SOURCE_IDENTITY_MISMATCH",
+            routeBefore = "AUDIO_ONLY_OPUS",
+            routeAfter = "AUDIO_ONLY_OPUS_PENDING_RESOLVER",
+        )
+        handleCurrentMediaChanged(current, Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED)
+        val rebuildAccepted = pendingCurrentVideoRouteActivation?.let {
+            it.mediaId == mediaId && it.mediaItemIndex == index
+        } == true
+        logVideoRouteDiag(
+            event = if (rebuildAccepted) "sourceIdentityRecoveryRebuildAccepted" else "sourceIdentityRecoveryRejected",
+            mediaItem = current,
+            musicVideoType = route.musicVideoType,
+            sourceInstanceId = oldSourceInstanceId,
+            recoveryOldSourceInstanceId = oldSourceInstanceId,
+            recoveryResult = if (rebuildAccepted) "REBUILD_ACCEPTED" else "REBUILD_REJECTED",
+            reason = if (rebuildAccepted) "CURRENT_SOURCE_REPLACED" else "REBUILD_NOT_REQUESTED",
+        )
+        return rebuildAccepted
+    }
+
+    /**
      * The muxed resolver runs on a Loader thread. Only this main-scope continuation reads or
      * mutates Player state, so resolving a DASH route cannot reintroduce wrong-thread access.
      */
@@ -4097,18 +4450,44 @@ class MusicService :
         val current = player.currentMediaItem
         val mediaId = originalItem.mediaId
         val index = player.currentMediaItemIndex
-        if (current == null ||
-            current.mediaId != mediaId ||
-            current.localConfiguration != originalItem.localConfiguration ||
-            index !in 0 until player.mediaItemCount ||
-            player.getMediaItemAt(index).mediaId != mediaId ||
-            !shouldAttemptVideoFor(originalItem) ||
-            !isConfirmedMusicVideoTrack(originalItem) ||
-            resolvedMusicVideoTypes[mediaId] != route.musicVideoType ||
-            hasCurrentVideoRoute(current) ||
-            dashRoutes[sourceInstanceId] !== route
-        ) {
+        logVideoRouteDiag(
+            event = "dashInstallAttempt",
+            mediaItem = originalItem,
+            musicVideoType = route.musicVideoType,
+            sourceInstanceId = sourceInstanceId,
+            resolverResult = "DASH_ROUTE_READY",
+            installAttempted = true,
+        )
+        val discardReason = when {
+            current == null -> "CURRENT_ITEM_MISSING"
+            current.mediaId != mediaId -> "CURRENT_MEDIA_ID_MISMATCH"
+            current.localConfiguration != originalItem.localConfiguration -> "SOURCE_IDENTITY_MISMATCH"
+            index !in 0 until player.mediaItemCount -> "CURRENT_INDEX_INVALID"
+            player.getMediaItemAt(index).mediaId != mediaId -> "QUEUE_ITEM_MEDIA_ID_MISMATCH"
+            !shouldAttemptVideoFor(originalItem) ->
+                "ELIGIBILITY_${videoEligibilityBlockedReason(originalItem) ?: "CHANGED"}"
+            !isConfirmedMusicVideoTrack(originalItem) -> "VIDEO_TYPE_NOT_CONFIRMED"
+            resolvedMusicVideoTypes[mediaId] != route.musicVideoType -> "RESOLVED_TYPE_ROUTE_TYPE_MISMATCH"
+            hasCurrentVideoRoute(current) -> "VIDEO_SOURCE_ALREADY_INSTALLED"
+            dashRoutes[sourceInstanceId] !== route -> "DASH_ROUTE_IDENTITY_MISMATCH"
+            else -> null
+        }
+        if (discardReason != null) {
+            logVideoRouteDiag(
+                event = "dashInstallDiscarded",
+                mediaItem = originalItem,
+                musicVideoType = route.musicVideoType,
+                sourceInstanceId = sourceInstanceId,
+                resolverResult = "DASH_ROUTE_READY",
+                installAttempted = true,
+                installDiscarded = true,
+                discardReason = discardReason,
+                reason = discardReason,
+            )
             dashRoutes.remove(sourceInstanceId, route)
+            if (discardReason == "SOURCE_IDENTITY_MISMATCH") {
+                recoverFromDashSourceIdentityMismatch(originalItem, sourceInstanceId, route)
+            }
             return
         }
 
@@ -4123,6 +4502,17 @@ class MusicService :
         Timber.tag(TAG).i(
             "[VideoPlayback][dash] mediaId=$mediaId musicVideoType=${route.musicVideoType} " +
                 "installing=SINGLE_DASH_VIDEO sourceInstance=$sourceInstanceId position=$position",
+        )
+        logVideoRouteDiag(
+            event = "dashInstallAccepted",
+            mediaItem = originalItem,
+            musicVideoType = route.musicVideoType,
+            sourceInstanceId = sourceInstanceId,
+            resolverResult = "DASH_ROUTE_READY",
+            installAttempted = true,
+            installAccepted = true,
+            routeBefore = "AUDIO_ONLY_OPUS",
+            routeAfter = "DASH_PENDING_SOURCE_CREATE",
         )
         player.replaceMediaItem(index, dashItem)
         player.prepare()
@@ -4144,6 +4534,9 @@ class MusicService :
         mediaSourceUri(mediaItem)?.let { videoSourceUris[mediaItem.mediaId] = it }
         pendingCurrentVideoRouteActivation = null
         videoPlaybackRequestedMediaId.value = mediaItem.mediaId
+        val recovery = sourceIdentityRecovery?.takeIf {
+            it.mediaId == mediaItem.mediaId && it.mediaItemIndex == player.currentMediaItemIndex
+        }
         Timber.tag(TAG).i(
             "[VideoPlayback][dash] mediaId=${mediaItem.mediaId} musicVideoType=${route.musicVideoType} " +
                 "route=SINGLE_DASH_VIDEO videoItag=${route.video.itag} " +
@@ -4156,6 +4549,19 @@ class MusicService :
                 "audioInitRange=${route.audio.initRange.start}-${route.audio.initRange.end} " +
                 "audioIndexRange=${route.audio.indexRange.start}-${route.audio.indexRange.end}",
         )
+        logVideoRouteDiag(
+            event = "sideloadedDashSourceCreated",
+            mediaItem = mediaItem,
+            musicVideoType = route.musicVideoType,
+            sourceInstanceId = sourceInstanceId,
+            resolverResult = "DASH_SOURCE_CREATED",
+            installAccepted = true,
+            recoveryOldSourceInstanceId = recovery?.oldSourceInstanceId,
+            recoveryNewSourceInstanceId = recovery?.let { sourceInstanceId },
+            recoveryResult = recovery?.let { "DASH_SOURCE_CREATED" },
+            routeAfter = "DASH",
+        )
+        if (recovery != null) sourceIdentityRecovery = null
         DashMediaSource.Factory(createSideloadedDashDataSourceFactory(route))
             .createMediaSource(manifest, mediaItem)
             .also { source ->
@@ -4188,6 +4594,15 @@ class MusicService :
         Timber.tag(TAG).w(
             "[VideoPlayback][dash] mediaId=${mediaItem.mediaId} manifest unavailable " +
                 "errorType=${error.javaClass.simpleName}; using audio-only",
+        )
+        logVideoRouteDiag(
+            event = "audioOnlySelected",
+            mediaItem = mediaItem,
+            musicVideoType = route.musicVideoType,
+            sourceInstanceId = sourceInstanceId,
+            resolverResult = "DASH_SOURCE_CREATE_FAILED",
+            reason = "DASH_SOURCE_CREATE_EXCEPTION_${error.javaClass.simpleName}",
+            routeAfter = "AUDIO_ONLY_OPUS",
         )
         audioFactory.createMediaSource(mediaItem)
     }
@@ -5398,6 +5813,7 @@ class MusicService :
         videoSourceUris.clear()
         videoPlaybackRoutes.clear()
         pendingCurrentVideoRouteActivation = null
+        sourceIdentityRecovery = null
 
         try {
             unregisterReceiver(screenStateReceiver)

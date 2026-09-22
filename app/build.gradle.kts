@@ -25,9 +25,9 @@ android {
         applicationId = "com.vivi.vivimusic"
         minSdk = 26
         targetSdk = 37
-        versionCode = 79
+        versionCode = 80
         val betaVersionName = project.findProperty("betaVersionName") as String?
-        versionName = betaVersionName ?: "1.0.0"
+        versionName = betaVersionName ?: "2.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true

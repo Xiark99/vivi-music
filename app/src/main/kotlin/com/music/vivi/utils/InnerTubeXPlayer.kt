@@ -194,6 +194,8 @@ object InnerTubeXPlayer {
     data class DashResolution(
         val musicVideoType: String?,
         val route: DashRoute?,
+        /** Diagnostic-only reason when a confirmed video has no usable DASH route. */
+        val noDashReason: String? = null,
     )
 
     /** Separate experiment: never changes extract()'s audio format selection. */
@@ -287,12 +289,12 @@ object InnerTubeXPlayer {
      */
     suspend fun resolveDash360(videoId: String, knownType: String?): DashResolution {
         var type = knownType
-        if (type == "MUSIC_VIDEO_TYPE_ATV") return DashResolution(type, null)
+        if (type == "MUSIC_VIDEO_TYPE_ATV") return DashResolution(type, null, "KNOWN_ATV")
         if (type !in ACTUAL_VIDEO_TYPES) {
             type = YTPlayerUtils.playerResponseForMetadata(videoId, null).getOrNull()
                 ?.videoDetails?.musicVideoType
         }
-        if (type !in ACTUAL_VIDEO_TYPES) return DashResolution(type, null)
+        if (type !in ACTUAL_VIDEO_TYPES) return DashResolution(type, null, "TYPE_NOT_CONFIRMED")
 
         val extraction = bundle()
         val config = extraction.configParser.fetchConfig(videoId, false)
@@ -312,7 +314,7 @@ object InnerTubeXPlayer {
         ).body<JsonObject>()
         val responseType = response["videoDetails"]?.jsonObject?.string("musicVideoType") ?: type
         if (responseType == "MUSIC_VIDEO_TYPE_ATV" || responseType !in ACTUAL_VIDEO_TYPES) {
-            return DashResolution(responseType, null)
+            return DashResolution(responseType, null, "VISIONOS_RESPONSE_NOT_VIDEO")
         }
         val actualMusicVideoType = requireNotNull(responseType)
         val adaptiveFormats = response["streamingData"]?.jsonObject
@@ -341,23 +343,25 @@ object InnerTubeXPlayer {
                 "selectedVideo=$selectedVideoItag selectedAudio=$selectedAudioItag",
         )
         logDashVideoFormatDiagnostics(videoId, actualMusicVideoType, client.clientName, videoFormats)
-        if (video == null || audio == null) return DashResolution(actualMusicVideoType, null)
+        if (video == null || audio == null) {
+            return DashResolution(actualMusicVideoType, null, "MISSING_360_VIDEO_OR_AUDIO_CANDIDATE")
+        }
         val resolvedVideo = try {
             resolveDashStream(extraction, config.playerUrl, null, client, video)
         } catch (error: CancellationException) {
             throw error
         } catch (_: Exception) {
             null
-        } ?: return DashResolution(actualMusicVideoType, null)
+        } ?: return DashResolution(actualMusicVideoType, null, "VIDEO_CIPHER_OR_URL_RESOLVE_FAILED")
         val resolvedAudio = try {
             resolveDashStream(extraction, config.playerUrl, null, client, audio)
         } catch (error: CancellationException) {
             throw error
         } catch (_: Exception) {
             null
-        } ?: return DashResolution(actualMusicVideoType, null)
+        } ?: return DashResolution(actualMusicVideoType, null, "AUDIO_CIPHER_OR_URL_RESOLVE_FAILED")
         val durationMs = (video.approxDurationMs ?: audio.approxDurationMs)?.takeIf { it > 0L }
-            ?: return DashResolution(actualMusicVideoType, null)
+            ?: return DashResolution(actualMusicVideoType, null, "MISSING_STREAM_DURATION")
         return DashResolution(
             musicVideoType = actualMusicVideoType,
             route = DashRoute(

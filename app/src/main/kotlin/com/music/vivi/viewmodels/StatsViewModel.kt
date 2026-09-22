@@ -41,7 +41,7 @@ constructor(
     val database: MusicDatabase,
 ) : ViewModel() {
     val selectedOption = MutableStateFlow(OptionStats.CONTINUOUS)
-    val indexChips = MutableStateFlow(StatPeriod.ALL.ordinal)
+    val indexChips = MutableStateFlow(StatPeriod.WEEK_1.ordinal)
 
     val totalPlayTime =
         combine(
