@@ -375,7 +375,7 @@ fun AppearanceSettings(
     }
 
     val availableMiniPlayerBackgroundStyles = availableBackgroundStyles.filter { 
-        it != PlayerBackgroundStyle.APPLE_MUSIC 
+        it != PlayerBackgroundStyle.APPLE_MUSIC && it != PlayerBackgroundStyle.BETTER_LYRICS_CANVAS
     }
 
 
@@ -698,6 +698,7 @@ fun AppearanceSettings(
                     PlayerBackgroundStyle.GLOW_ANIMATED -> stringResource(R.string.glow_animated)
                     PlayerBackgroundStyle.APPLE_MUSIC -> stringResource(R.string.apple_music)
                     PlayerBackgroundStyle.LIVE_MESH -> stringResource(R.string.live_mesh)
+                    PlayerBackgroundStyle.BETTER_LYRICS_CANVAS -> stringResource(R.string.better_lyrics_canvas)
                 }
             }
         )
@@ -720,6 +721,7 @@ fun AppearanceSettings(
                     PlayerBackgroundStyle.BLUR -> stringResource(R.string.player_background_blur)
                     PlayerBackgroundStyle.GLOW_ANIMATED -> stringResource(R.string.glow_animated)
                     PlayerBackgroundStyle.LIVE_MESH -> stringResource(R.string.live_mesh)
+                    PlayerBackgroundStyle.BETTER_LYRICS_CANVAS -> stringResource(R.string.better_lyrics_canvas)
                     else -> ""
                 }
             }
@@ -1220,6 +1222,7 @@ fun AppearanceSettings(
                                     PlayerBackgroundStyle.BLUR -> stringResource(R.string.player_background_blur)
                                     PlayerBackgroundStyle.GLOW_ANIMATED -> stringResource(R.string.glow_animated)
                                     PlayerBackgroundStyle.LIVE_MESH -> stringResource(R.string.live_mesh)
+                    PlayerBackgroundStyle.BETTER_LYRICS_CANVAS -> stringResource(R.string.better_lyrics_canvas)
                                     else -> stringResource(R.string.follow_theme)
                                 }
                             )
@@ -1269,6 +1272,7 @@ fun AppearanceSettings(
                                 PlayerBackgroundStyle.GLOW_ANIMATED -> stringResource(R.string.glow_animated)
                                 PlayerBackgroundStyle.APPLE_MUSIC -> stringResource(R.string.apple_music)
                                 PlayerBackgroundStyle.LIVE_MESH -> stringResource(R.string.live_mesh)
+                    PlayerBackgroundStyle.BETTER_LYRICS_CANVAS -> stringResource(R.string.better_lyrics_canvas)
                             }
                         )
                     },

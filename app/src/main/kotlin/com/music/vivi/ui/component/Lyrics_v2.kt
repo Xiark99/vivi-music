@@ -182,8 +182,11 @@ fun LyricsV2(
         defaultValue = com.music.vivi.constants.PlayerBackgroundStyle.GRADIENT
     )
 
-    val adaptivePrimary =
-        if (playerBackground == com.music.vivi.constants.PlayerBackgroundStyle.DEFAULT) MaterialTheme.colorScheme.onSurface else Color.White
+    val processedLyricsBackground = com.music.vivi.ui.theme.LocalProcessedLyricsBackground.current
+        ?: (playerBackground != com.music.vivi.constants.PlayerBackgroundStyle.DEFAULT)
+    val adaptivePrimary = com.music.vivi.ui.theme.rememberArtworkLyricsColor(
+        mediaMetadata?.thumbnailUrl, processedLyricsBackground
+    )
     val lyrics = remember(currentLyrics) { currentLyrics?.lyrics?.trim() }
     val context = LocalContext.current
     val database = LocalDatabase.current
@@ -228,7 +231,8 @@ fun LyricsV2(
     }
 
     Box(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize()
+            .background(if (processedLyricsBackground) Color.Black.copy(alpha = 0.68f) else Color.Transparent),
         contentAlignment = Alignment.Center
     ) {
         when {
@@ -363,11 +367,13 @@ fun LyricsV2(
                     }
                 }
                 
-                LaunchedEffect(showLyrics, lines.size, effectiveAdditionalPrompt) {
-                    LyricsTranslationHelper.manualTrigger.collect {
+                LaunchedEffect(showLyrics, lines, effectiveAdditionalPrompt, translateLanguage, translateMode,
+        openRouterApiKey, openRouterBaseUrl, openRouterModel, aiProvider, deeplApiKey, deeplFormality, mediaMetadata?.id) {
+                    LyricsTranslationHelper.manualTrigger.collect { forceRefresh ->
                         val effectiveApiKey = if (aiProvider == "DeepL") deeplApiKey else openRouterApiKey
                         if (showLyrics && lines.isNotEmpty() && effectiveApiKey.isNotBlank()) {
                             LyricsTranslationHelper.translateLyrics(
+                    forceRefresh = forceRefresh,
                                 lyrics = lines,
                                 targetLanguage = translateLanguage,
                                 apiKey = openRouterApiKey,

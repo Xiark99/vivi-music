@@ -5,7 +5,7 @@ Branch: feature/nami-3.0
 Official source: b6.0.8-r7 (b41c9e563ade592c03435d91d984a0ff56a42861)
 Nami 2.0 source: ea1cc440
 
-Version: 3.0.0 (81), previously 2.0.0 (80)
+Version: 3.0.0 (82), previously Nami 3.0.0 (81)
 Application ID: com.vivi.vivimusic.custom (unchanged)
 Keystore: C:\Users\akazu\.android\keystores\vivi-custom-release.jks (unchanged)
 Alias: vivi-custom (unchanged)
@@ -34,7 +34,7 @@ APK output directory:
 C:\dev\nami-3.0\app\build\outputs\apk\universalFoss\customRelease
 
 Unsigned validation (no password needed):
-.\gradlew.bat :app:compileUniversalFossCustomReleaseKotlin :app:testUniversalFossDebugUnitTest :Motionartwork:test --no-configuration-cache --console=plain
+.\gradlew.bat :app:compileUniversalFossCustomReleaseKotlin :app:testUniversalFossDebugUnitTest :Motionartwork:test :app:lintUniversalFossCustomRelease --no-configuration-cache --console=plain
 
 Before using as a daily driver, install the signed APK over Nami 2.0 without
 uninstalling it. Verify library/downloads/settings, history sync, AI translation,

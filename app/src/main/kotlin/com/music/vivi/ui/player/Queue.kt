@@ -489,7 +489,9 @@ fun Queue(
                 }
             } else {
                 // Old design
-                Box(
+                Row(
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 30.dp, vertical = 12.dp)
@@ -500,7 +502,7 @@ fun Queue(
                 ) {
                     TextButton(
                         onClick = { state.expandSoft() },
-                        modifier = Modifier.align(Alignment.CenterStart)
+                        modifier = Modifier.wrapContentWidth()
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -526,9 +528,7 @@ fun Queue(
 
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
-                        modifier = Modifier
-                            .width(180.dp)
-                            .align(Alignment.Center)
+                        modifier = Modifier.width(120.dp)
                     ) {
                         ToggleButton(
                             checked = false,
@@ -566,7 +566,7 @@ fun Queue(
                                     }
                                 }
                             },
-                            shapes = ButtonGroupDefaults.connectedMiddleButtonShapes(),
+                            shapes = ButtonGroupDefaults.connectedTrailingButtonShapes(),
                             modifier = Modifier
                                 .height(56.dp)
                                 .weight(1f),
@@ -597,38 +597,13 @@ fun Queue(
                                 }
                             }
                         }
-
-                        if (showCommentButton) {
-                            ToggleButton(
-                                checked = showCommentSheet,
-                                onCheckedChange = { showCommentSheet = true },
-                                shapes = ButtonGroupDefaults.connectedTrailingButtonShapes(),
-                                modifier = Modifier
-                                    .height(56.dp)
-                                    .weight(1f),
-                                colors = ToggleButtonDefaults.colors(
-                                    containerColor = TextBackgroundColor.copy(alpha = 0.2f),
-                                    contentColor = TextBackgroundColor,
-                                    checkedContainerColor = TextBackgroundColor.copy(alpha = 0.4f),
-                                    checkedContentColor = TextBackgroundColor
-                                )
-                            ) {
-                                Icon(
-                                    painter = painterResource(id = R.drawable.chat_msg),
-                                    contentDescription = stringResource(R.string.comments),
-                                    modifier = Modifier.size(30.dp)
-                                )
-                            }
-                        } else {
-                            Spacer(modifier = Modifier.weight(1f))
-                        }
                     }
 
                     TextButton(
                         onClick = {
                             onToggleLyrics()
                         },
-                        modifier = Modifier.align(Alignment.CenterEnd)
+                        modifier = Modifier.wrapContentWidth()
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -1543,7 +1518,7 @@ private fun PlayerQueueButton(
                 iconButtonColor
             } else {
                 when (playerBackground) {
-                    PlayerBackgroundStyle.BLUR, PlayerBackgroundStyle.GRADIENT, PlayerBackgroundStyle.GLOW_ANIMATED, PlayerBackgroundStyle.APPLE_MUSIC, PlayerBackgroundStyle.LIVE_MESH ->
+                    PlayerBackgroundStyle.BLUR, PlayerBackgroundStyle.GRADIENT, PlayerBackgroundStyle.GLOW_ANIMATED, PlayerBackgroundStyle.APPLE_MUSIC, PlayerBackgroundStyle.LIVE_MESH, PlayerBackgroundStyle.BETTER_LYRICS_CANVAS ->
                         Color.White
                     PlayerBackgroundStyle.DEFAULT ->
                         MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)

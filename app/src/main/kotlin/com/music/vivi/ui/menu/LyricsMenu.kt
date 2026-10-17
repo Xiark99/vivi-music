@@ -112,6 +112,7 @@ fun LyricsMenu(
     // Observe the authoritative translation-active state from the singleton; this persists
     // correctly across menu open/close cycles and avoids the lyricsProvider() race condition.
     val hasTranslations by LyricsTranslationHelper.hasActiveTranslations.collectAsState()
+    val translationStatus by LyricsTranslationHelper.status.collectAsState()
 
     var showEditDialog by rememberSaveable {
         mutableStateOf(false)
@@ -504,7 +505,15 @@ fun LyricsMenu(
                             )
                         )
                     }
-                    
+                    if (hasTranslations) {
+                        add(Material3MenuItemData(
+                            title = { Text(stringResource(R.string.ai_retranslate)) },
+                            icon = { Icon(painterResource(R.drawable.refresh), contentDescription = null) },
+                            onClick = if (translationStatus is LyricsTranslationHelper.TranslationStatus.Translating) null
+                                else ({ LyricsTranslationHelper.triggerManualTranslation(forceRefresh = true) }),
+                        ))
+                    }
+
                     add(
                         Material3MenuItemData(
                             title = { Text(stringResource(R.string.lyrics_offset)) },

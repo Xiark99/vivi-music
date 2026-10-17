@@ -324,7 +324,7 @@ fun BottomSheetPlayer(
 
     val shouldUseDarkButtonColors = remember(playerBackground, useDarkTheme) {
         when (playerBackground) {
-            PlayerBackgroundStyle.BLUR, PlayerBackgroundStyle.GRADIENT, PlayerBackgroundStyle.GLOW_ANIMATED, PlayerBackgroundStyle.APPLE_MUSIC, PlayerBackgroundStyle.LIVE_MESH -> true
+            PlayerBackgroundStyle.BLUR, PlayerBackgroundStyle.GRADIENT, PlayerBackgroundStyle.GLOW_ANIMATED, PlayerBackgroundStyle.APPLE_MUSIC, PlayerBackgroundStyle.LIVE_MESH, PlayerBackgroundStyle.BETTER_LYRICS_CANVAS -> true
             PlayerBackgroundStyle.DEFAULT -> useDarkTheme
         }
     }
@@ -341,7 +341,7 @@ fun BottomSheetPlayer(
             val insetsController = WindowCompat.getInsetsController(window, window.decorView)
             
             when (playerBackground) {
-                PlayerBackgroundStyle.BLUR, PlayerBackgroundStyle.GRADIENT, PlayerBackgroundStyle.GLOW_ANIMATED, PlayerBackgroundStyle.APPLE_MUSIC, PlayerBackgroundStyle.LIVE_MESH -> {
+                PlayerBackgroundStyle.BLUR, PlayerBackgroundStyle.GRADIENT, PlayerBackgroundStyle.GLOW_ANIMATED, PlayerBackgroundStyle.APPLE_MUSIC, PlayerBackgroundStyle.LIVE_MESH, PlayerBackgroundStyle.BETTER_LYRICS_CANVAS -> {
                     insetsController.isAppearanceLightStatusBars = false
                 }
                 PlayerBackgroundStyle.DEFAULT -> {
@@ -547,7 +547,7 @@ fun BottomSheetPlayer(
             PlayerBackgroundStyle.GRADIENT -> Color.White
             PlayerBackgroundStyle.GLOW_ANIMATED -> Color.White
             PlayerBackgroundStyle.APPLE_MUSIC -> Color.White
-            PlayerBackgroundStyle.LIVE_MESH -> Color.White
+            PlayerBackgroundStyle.LIVE_MESH, PlayerBackgroundStyle.BETTER_LYRICS_CANVAS -> Color.White
         },
         label = "TextBackgroundColor"
     )
@@ -559,7 +559,7 @@ fun BottomSheetPlayer(
             PlayerBackgroundStyle.GRADIENT -> Color.Black
             PlayerBackgroundStyle.GLOW_ANIMATED -> Color.Black
             PlayerBackgroundStyle.APPLE_MUSIC -> Color.Black
-            PlayerBackgroundStyle.LIVE_MESH -> Color.Black
+            PlayerBackgroundStyle.LIVE_MESH, PlayerBackgroundStyle.BETTER_LYRICS_CANVAS -> Color.Black
         },
         label = "icBackgroundColor"
     )
@@ -711,7 +711,8 @@ fun BottomSheetPlayer(
         playerBackground == PlayerBackgroundStyle.GRADIENT ||
         playerBackground == PlayerBackgroundStyle.GLOW_ANIMATED ||
         playerBackground == PlayerBackgroundStyle.APPLE_MUSIC ||
-        playerBackground == PlayerBackgroundStyle.LIVE_MESH -> {
+        playerBackground == PlayerBackgroundStyle.LIVE_MESH ||
+        playerBackground == PlayerBackgroundStyle.BETTER_LYRICS_CANVAS -> {
             when (playerButtonsStyle) {
                 PlayerButtonsStyle.DEFAULT -> Pair(Color.White, Color.Black)
                 PlayerButtonsStyle.PRIMARY -> Pair(
@@ -883,7 +884,7 @@ fun BottomSheetPlayer(
     val bottomSheetBackgroundColor = when (playerBackground) {
         PlayerBackgroundStyle.BLUR, PlayerBackgroundStyle.GRADIENT, PlayerBackgroundStyle.GLOW_ANIMATED, PlayerBackgroundStyle.APPLE_MUSIC ->
             MaterialTheme.colorScheme.surfaceContainer
-        PlayerBackgroundStyle.LIVE_MESH ->
+        PlayerBackgroundStyle.LIVE_MESH, PlayerBackgroundStyle.BETTER_LYRICS_CANVAS ->
             Color.Black
         else ->
             if (useBlackBackground) Color.Black
@@ -891,6 +892,10 @@ fun BottomSheetPlayer(
     }
 
     val backgroundAlpha = state.progress.coerceIn(0f, 1f)
+    androidx.compose.runtime.CompositionLocalProvider(
+        com.music.vivi.ui.theme.LocalProcessedLyricsBackground provides
+            (playerBackground != PlayerBackgroundStyle.DEFAULT || (spotifyCanvasUrl != null && !usePlayerV2))
+    ) {
     BottomSheet(
         state = state,
         modifier = modifier,
@@ -900,7 +905,7 @@ fun BottomSheetPlayer(
                     .fillMaxSize()
                     .background(bottomSheetBackgroundColor)
             ) {
-                if (spotifyCanvasUrl != null && !usePlayerV2) {
+                if (spotifyCanvasUrl != null && !usePlayerV2 && playerBackground != PlayerBackgroundStyle.BETTER_LYRICS_CANVAS) {
                     val overlayAlpha by animateFloatAsState(
                         targetValue = if (showInlineLyrics) 0.85f else 0.4f,
                         label = "canvasDimmer"
@@ -1247,6 +1252,14 @@ fun BottomSheetPlayer(
                                 }
                             }
                         }
+                    }
+                    PlayerBackgroundStyle.BETTER_LYRICS_CANVAS -> {
+                        BetterLyricsCanvas(
+                            artworkUrl = mediaMetadata?.thumbnailUrl,
+                            isPlaying = effectiveIsPlaying,
+                            visible = backgroundAlpha > 0.01f,
+                            modifier = Modifier.fillMaxSize().alpha(backgroundAlpha),
+                        )
                     }
                     PlayerBackgroundStyle.LIVE_MESH -> {
                         val infiniteTransition = rememberInfiniteTransition(label = "liveMeshRotation")
@@ -2707,6 +2720,7 @@ fun BottomSheetPlayer(
             },
             )
         }
+    }
     }
     }
 }

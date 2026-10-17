@@ -1,0 +1,153 @@
+Nami 3.0 追加改修報告 / versionCode 82
+作業日: 2026-10-17
+作業場所: C:\dev\nami-3.0 / feature/nami-3.0
+
+チェックポイント
+9a862634 chore(nami): checkpoint verified Nami 3.0 baseline
+親: ea1cc440（Nami 2.0）/ b41c9e56（公式b6.0.8-r7）
+実機で動作確認済みとの申告があった改修前のコードをローカル保存。
+秘密情報、署名鍵、local.properties、APK、新規/変更された生成物は追加していない。
+従来から追跡されていたGMSのbaselineProfiles/*.dmの更新2件はコミットから除外し、
+既存ファイルを破棄せず未ステージの変更として保持した。
+今回の追加改修はこのチェックポイントとは別の未コミット差分。
+他の作業ツリーのファイル、リモート、Releaseは変更していない。
+
+1. 各機能の実装
+
+② Apple Music風プレイヤーのコメントボタン撤去
+Queue.ktの旧デザイン下部操作エリアを公式b6.0.8-r7のRow配置へ戻した。
+デバイス操作とスリープタイマーは幅120dpの2連結ボタン。
+コメントボタンと代用Spacerを削除。他のデザインのコメント導線・機能は維持。
+
+③ 再翻訳
+「AI歌詞翻訳」の直下に「再翻訳」を追加。翻訳が存在する場合に表示する。
+既存の翻訳経路を利用し、現在のモデル、言語、モード、プロバイダー、
+API設定と追加プロンプトを引き継ぐ。設定変更時にはイベント購読も更新する。
+forceRefresh時は翻訳キャッシュを使わず、新しいAPIリクエストを送る。
+新しい翻訳が揃うまで旧翻訳を表示し、ストリーミングの途中結果は適用しない。
+完全な翻訳が成功した後に表示・キャッシュ・DBを更新する。
+通信失敗や不完全な翻訳では旧翻訳・旧キャッシュ・DBを維持。
+処理中は再翻訳のクリック処理を無効化し、ヘルパー側でも重複開始を防ぐ。
+画面を閉じて処理をキャンセルした後は再実行できるよう状態を戻す。
+通常翻訳と追加プロンプトのキャッシュ識別方式は維持。
+
+④ ホームの音声認識ボタン撤去
+ホームのFABに渡していた認識コールバックを削除。
+他に呼び出しがなかったFABの認識ボタン用引数・表示処理・余白を整理。
+音声認識サービス、画面、検索の長押し等の他の起動導線は維持。
+
+⑤ 全背景でアルバムアート由来の歌詞色
+Lyrics.ktとLyrics_v2.ktの背景別の白色固定を撤去。
+既存のBitmap.extractThemeColor（Palette + Material Color Utilities Score）を利用し、
+背景設定やアプリ全体の動的テーマ設定から独立して曲ごとの色を生成する。
+Spotify Canvasが選択テーマを置き換える場合も、実際の背景状態を歌詞側へ渡す。
+色は700msで切り替える。動く背景では歌詞領域に68%の黒い下地を重ね、
+アクティブ色を最悪ケースの下地に対して4.5:1以上になるよう補正する。
+既存の行・単語の強調、非アクティブ行の濃度差、同期・翻訳・スクロールは維持。
+Classic/Apple Music風/V2/横画面で共通の歌詞コンポーネントに適用。
+
+① Better Lyrics Canvas
+プレイヤー背景選択肢に「Better Lyrics Canvas」を追加。
+既存のCanvas、LiveMesh、Apple Music背景の実装は維持。
+選択したBetter Lyrics CanvasをSpotify Canvasが上書きしないようにした。
+ミニプレイヤー背景の選択肢には追加していない。
+
+2. 変更ファイル
+作業終了時の一覧を末尾に記載。
+
+3. Better Lyrics Canvasの実装方式・互換性
+外部ライブラリ依存や外部ソースを追加せず、独自に実装した。
+アルバムアートをCoilで128pxに縮小して読み込み、32x32の色マップへ変換。
+バックグラウンドスレッドで一曲につき6回の小さなボックスぼかしを行う。
+透明部分は黒い下地へ合成し、見えないRGB値が背景へ混入しないようにする。
+Android 13/API 33以上では単一のRuntimeShaderで座標を流動的に変形し、
+色マップをサンプリングする。再生中の更新は最大およそ30fps。
+時刻の状態は描画フェーズで読み、フレームごとにプレイヤー全体を再構築しない。
+曲変更時は背景を1000msでクロスフェードする。
+一時停止中は連続描画を停止。プレイヤー折り畳み時には背景コンポーネントを破棄し、
+アプリがRESUMEDでない間もフレーム更新を停止する。
+API 32以下ではアルバムアートの色から作る静的グラデーションへフォールバック。
+シェーダー生成失敗やソフトウェア描画でも静的背景を表示する。
+新しい背景には動画プレイヤー、動画デコーダー、動画ストリーム取得を使わない。
+
+参考元の確認:
+Kawarp: MIT
+https://github.com/better-lyrics/kawarp/blob/master/LICENSE
+Kawarp-AGSL: LGPL-3.0（READMEおよびLICENSEで確認）
+https://github.com/meowarex/kawarp-agsl/blob/main/LICENSE
+API 33のRuntimeShaderの仕様:
+https://developer.android.com/develop/ui/views/graphics/agsl/using-agsl
+いずれのライブラリの依存追加・コード取り込みもしていない。
+追加した実装は既存Nami/VIVIプロジェクトのライセンスの下で扱う。
+
+4. 検証
+②〜⑤のCustom ReleaseコンパイルとFOSS単体テストを先に実施し成功。
+①を追加した後、Custom Releaseコンパイルと単体テスト16件が成功。
+内訳: BiniLyrics 5、追加プロンプト3、歌詞色コントラスト2、
+背景色マップ4、既存Motionartwork 2。
+最終のコンパイル・単体テスト・通常lintコマンド: BUILD SUCCESSFUL（4m 9s）。
+単体テスト: 16件成功。
+通常lint: Error 84件、Warning 775件、Hint 5件。
+Errorの内訳は変更前と同じ行83件、未変更のlocal.propertiesに1件。
+今回の変更行にErrorはなく、新規の背景/歌詞色実装・テスト4ファイルの診断は0件。
+既存のabortOnError=false設定によりGradleタスクは成功するが、lint全体はクリーンではない。
+初回のKotlin解析器内部エラーは、式の整理と確定ソースでの再実行後には発生していない。
+通常lintレポート:
+C:\dev\nami-3.0\app\build\reports\lint-results-universalFossCustomRelease.html
+ログ: nami-phase2-5.log / nami-v82-verify.log / nami-v82-final.log
+署名付きAPKは署名パスワードの環境変数がないため保留。
+実行手順: NAMI3_BUILD.txt
+
+互換性の確認:
+versionName 3.0.0、versionCode 82。
+applicationId com.vivi.vivimusic.custom と署名設定を維持。
+MusicService、YTPlayerUtils、InnerTubeXPlayer、LibraryMixScreen、
+AutoBackupHelper、MusicDatabase、TranslationPromptはチェックポイントと同一。
+DBスキーマ・バックアップ形式の変更なし。
+動画ルーティング/動画表示の撤去済みファイルは復活させていない。
+
+5. 実機確認事項
+- API 33以上: 背景選択、明暗/単色/透明部分があるアルバムアート、曲の連続切替。
+- API 32以下: 静的グラデーションへのフォールバック。
+- 一時停止、画面ロック、別アプリへ切替、プレイヤー折り畳み時の電池・描画負荷。
+- 縦横画面、Classic/Apple Music風/V2、各背景での歌詞色と可読性。
+- 再翻訳の成功、APIエラー、ネット切断、不完全な応答、連打、設定変更後の再翻訳。
+- 再翻訳失敗時に以前の翻訳が残ること、成功後に新しい翻訳が再起動後も残ること。
+- Apple Music風のデバイス/タイマー配置と、他のデザインのコメント機能。
+- ホームの認識ボタンがないことと、検索長押し等からの音声認識。
+- 同じ鍵の署名済みAPKをアンインストールせず上書きし、設定・ライブラリを確認。
+- 音声再生、シーク、公式履歴同期、Library Mix、Canvas、タスク終了時停止。
+
+6. 未解決・未実施
+既存の通常lint Error 84件とWarning 775件、Hint 5件が残る。
+例: LrcRedLyricsProviderのAPI 35依存呼び出し、翻訳の複数形、既存Composeの
+リソース参照・コルーチン配置、local.propertiesのエスケープ指摘。
+これらの発生行を照合し、今回の追加変更によるErrorではないことを確認した。
+対象外の既存実装・翻訳ファイル・ローカル設定を一括変更したり、診断を抑制していない。
+署名付きAPKの作成と上書きインストール、実機のAGSL描画・消費電力・GPU互換性、
+実際のAIサービスへの再翻訳リクエストは未検証。既存の認証情報は読み取っていない。
+GitHubへのpush、Release公開は実施していない。
+
+変更ファイル一覧（生成物を除く）
+C:\dev\nami-3.0\NAMI3_BUILD.txt
+C:\dev\nami-3.0\NAMI3_V82_REPORT.txt
+C:\dev\nami-3.0\app\build.gradle.kts
+C:\dev\nami-3.0\app\src\main\kotlin\com\music\vivi\constants\PreferenceKeys.kt
+C:\dev\nami-3.0\app\src\main\kotlin\com\music\vivi\lyrics\LyricsTranslationHelper.kt
+C:\dev\nami-3.0\app\src\main\kotlin\com\music\vivi\ui\component\HideOnScrollFAB.kt
+C:\dev\nami-3.0\app\src\main\kotlin\com\music\vivi\ui\component\Lyrics.kt
+C:\dev\nami-3.0\app\src\main\kotlin\com\music\vivi\ui\component\Lyrics_v2.kt
+C:\dev\nami-3.0\app\src\main\kotlin\com\music\vivi\ui\menu\LyricsMenu.kt
+C:\dev\nami-3.0\app\src\main\kotlin\com\music\vivi\ui\player\BetterLyricsCanvas.kt
+C:\dev\nami-3.0\app\src\main\kotlin\com\music\vivi\ui\player\Player.kt
+C:\dev\nami-3.0\app\src\main\kotlin\com\music\vivi\ui\player\PlayerV2Landscape.kt
+C:\dev\nami-3.0\app\src\main\kotlin\com\music\vivi\ui\player\Player_v2.kt
+C:\dev\nami-3.0\app\src\main\kotlin\com\music\vivi\ui\player\Queue.kt
+C:\dev\nami-3.0\app\src\main\kotlin\com\music\vivi\ui\player\Thumbnail.kt
+C:\dev\nami-3.0\app\src\main\kotlin\com\music\vivi\ui\screens\HomeScreen.kt
+C:\dev\nami-3.0\app\src\main\kotlin\com\music\vivi\ui\screens\settings\AppearanceSettings.kt
+C:\dev\nami-3.0\app\src\main\kotlin\com\music\vivi\ui\theme\ArtworkLyricsColor.kt
+C:\dev\nami-3.0\app\src\main\kotlin\com\music\vivi\ui\theme\PlayerSliderColors.kt
+C:\dev\nami-3.0\app\src\main\res\values\vivi_strings.xml
+C:\dev\nami-3.0\app\src\test\kotlin\com\music\vivi\ui\player\BetterLyricsCanvasTest.kt
+C:\dev\nami-3.0\app\src\test\kotlin\com\music\vivi\ui\theme\ArtworkLyricsColorTest.kt

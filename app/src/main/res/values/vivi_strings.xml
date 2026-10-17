@@ -1175,4 +1175,7 @@
     <string name="manual_delete_hint_desc">You can manually also delete. Deleting old apk will improve the updater to update properly.</string>
     <string name="backup_before_update">Backup before update</string>
     <string name="backup_before_update_desc">Automatically backup your data before downloading an app update.</string>
+    <string name="ai_retranslate">再翻訳</string>
+    <string name="ai_error_incomplete">Translation was incomplete. The previous translation has been kept.</string>
+    <string name="better_lyrics_canvas">Better Lyrics Canvas</string>
 </resources>

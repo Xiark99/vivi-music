@@ -510,6 +510,7 @@ enum class PlayerBackgroundStyle {
     GLOW_ANIMATED,
     APPLE_MUSIC,
     LIVE_MESH,
+    BETTER_LYRICS_CANVAS,
 }
 
 val TopSize = stringPreferencesKey("topSize")

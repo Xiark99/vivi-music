@@ -36,11 +36,11 @@ object LyricsTranslationHelper {
     private val _hasActiveTranslations = MutableStateFlow(false)
     val hasActiveTranslations: StateFlow<Boolean> = _hasActiveTranslations.asStateFlow()
 
-    private val _manualTrigger = MutableSharedFlow<Unit>(
+    private val _manualTrigger = MutableSharedFlow<Boolean>(
         extraBufferCapacity = 1,
         onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST,
     )
-    val manualTrigger: SharedFlow<Unit> = _manualTrigger.asSharedFlow()
+    val manualTrigger: SharedFlow<Boolean> = _manualTrigger.asSharedFlow()
 
     private val _clearTranslationsTrigger = MutableSharedFlow<Unit>(
         extraBufferCapacity = 1,
@@ -132,8 +132,9 @@ object LyricsTranslationHelper {
         return false
     }
 
-    fun triggerManualTranslation() {
-        _manualTrigger.tryEmit(Unit)
+    fun triggerManualTranslation(forceRefresh: Boolean = false) {
+        if (_status.value is TranslationStatus.Translating) return
+        _manualTrigger.tryEmit(forceRefresh)
     }
 
     fun triggerClearTranslations() {
@@ -166,6 +167,7 @@ object LyricsTranslationHelper {
         isCompositionActive = false
         translationJob?.cancel()
         translationJob = null
+        if (_status.value is TranslationStatus.Translating) _status.value = TranslationStatus.Idle
     }
 
     /**
@@ -216,6 +218,7 @@ object LyricsTranslationHelper {
         _hasActiveTranslations.value = true
     }
 
+    @Synchronized
     fun translateLyrics(
         lyrics: List<LyricsEntry>,
         targetLanguage: String,
@@ -232,14 +235,15 @@ object LyricsTranslationHelper {
         songId: String = "",
         database: MusicDatabase? = null,
         additionalPrompt: String = "",
+        forceRefresh: Boolean = false,
     ) {
+        if (_status.value is TranslationStatus.Translating) return
         val effectivePrompt = if (provider == "DeepL") "" else additionalPrompt
         val cacheMode = TranslationPrompt.cacheMode(mode, effectivePrompt)
         translationJob?.cancel()
         _status.value = TranslationStatus.Translating
 
-        // Clear existing translations to indicate re-translation
-        lyrics.forEach { it.translatedTextFlow.value = null }
+        if (!forceRefresh) lyrics.forEach { it.translatedTextFlow.value = null }
 
         translationJob = scope.launch(Dispatchers.IO) {
             try {
@@ -270,7 +274,7 @@ object LyricsTranslationHelper {
 
                 // Check cache first
                 val cacheKey = getCacheKey(fullText, cacheMode, targetLanguage)
-                val cachedTranslations = translationCache[cacheKey]
+                val cachedTranslations = if (forceRefresh) null else translationCache[cacheKey]
                 if (cachedTranslations != null && cachedTranslations.size >= nonEmptyEntries.size) {
                     // Use cached translations
                     nonEmptyEntries.forEachIndexed { idx, (originalIndex, _) ->
@@ -366,7 +370,7 @@ object LyricsTranslationHelper {
 
                                 val partialContent = contentAccumulator.toString()
                                 val partialResult = tryParsePartialTranslation(partialContent, nonEmptyEntries.size)
-                                if (partialResult.isNotEmpty()) {
+                                if (partialResult.isNotEmpty() && !forceRefresh) {
                                     partialResult.forEachIndexed { idx, translation ->
                                         if (idx < nonEmptyEntries.size && translation.isNotBlank()) {
                                             val originalIndex = nonEmptyEntries[idx].first
@@ -411,6 +415,12 @@ object LyricsTranslationHelper {
 
                 result.onSuccess { translatedLines ->
                     if (!isCompositionActive) {
+                        return@onSuccess
+                    }
+
+                    if (forceRefresh && (translatedLines.size < nonEmptyEntries.size ||
+                            translatedLines.take(nonEmptyEntries.size).any { it.isBlank() })) {
+                        _status.value = TranslationStatus.Error(context.getString(com.music.vivi.R.string.ai_error_incomplete))
                         return@onSuccess
                     }
 

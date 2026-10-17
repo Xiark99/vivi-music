@@ -514,11 +514,13 @@ fun Lyrics(
     }
     
     // Listen for manual trigger
-    LaunchedEffect(showLyrics, lines.size, effectiveAdditionalPrompt) {
-        LyricsTranslationHelper.manualTrigger.collect {
+    LaunchedEffect(showLyrics, lines, effectiveAdditionalPrompt, translateLanguage, translateMode,
+        openRouterApiKey, openRouterBaseUrl, openRouterModel, aiProvider, deeplApiKey, deeplFormality, mediaMetadata?.id) {
+        LyricsTranslationHelper.manualTrigger.collect { forceRefresh ->
             val effectiveApiKey = if (aiProvider == "DeepL") deeplApiKey else openRouterApiKey
             if (showLyrics && lines.isNotEmpty() && effectiveApiKey.isNotBlank()) {
                 LyricsTranslationHelper.translateLyrics(
+                    forceRefresh = forceRefresh,
                     lyrics = lines,
                     targetLanguage = translateLanguage,
                     apiKey = openRouterApiKey,
@@ -548,20 +550,13 @@ fun Lyrics(
         }
     }
 
-    // Use Material 3 expressive accents and keep glow/text colors unified
-    val expressiveAccent = when (playerBackground) {
-        PlayerBackgroundStyle.DEFAULT -> MaterialTheme.colorScheme.primary
-        PlayerBackgroundStyle.BLUR, PlayerBackgroundStyle.GRADIENT, PlayerBackgroundStyle.GLOW_ANIMATED, PlayerBackgroundStyle.APPLE_MUSIC, PlayerBackgroundStyle.LIVE_MESH -> {
-            // For animated or processed backgrounds, always use light colors regardless of theme
-            Color.White
-        }
-    }
+    val processedLyricsBackground = com.music.vivi.ui.theme.LocalProcessedLyricsBackground.current
+        ?: (playerBackground != PlayerBackgroundStyle.DEFAULT)
+    val expressiveAccent = com.music.vivi.ui.theme.rememberArtworkLyricsColor(
+        mediaMetadata?.thumbnailUrl, processedLyricsBackground
+    )
     val textColor = expressiveAccent
-    val providerTextColor = if (playerBackground == PlayerBackgroundStyle.DEFAULT) {
-        MaterialTheme.colorScheme.onSurface
-    } else {
-        Color.White
-    }
+    val providerTextColor = expressiveAccent
 
     var currentLineIndex by remember {
         mutableIntStateOf(-1)
@@ -957,6 +952,7 @@ fun Lyrics(
         contentAlignment = Alignment.TopCenter,
         modifier = modifier
             .fillMaxSize()
+            .background(if (processedLyricsBackground) Color.Black.copy(alpha = 0.68f) else Color.Transparent)
             .padding(bottom = 12.dp)
     ) {
         // Status UI for translation
