@@ -56,8 +56,6 @@ import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import com.music.vivi.constants.LastSeenStarPromptVersionKey
-import com.music.vivi.constants.HasStarredRepoKey
 import com.music.vivi.ui.component.ActionPromptDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.text.style.TextAlign
@@ -444,10 +442,7 @@ class MainActivity : ComponentActivity() {
 
         val darkTheme by rememberEnumPreference(DarkModeKey, defaultValue = DarkMode.AUTO)
 
-        val (lastSeenStarPromptVersion, setLastSeenStarPromptVersion) = rememberPreference(LastSeenStarPromptVersionKey, "")
-        val (hasStarredRepo) = rememberPreference(HasStarredRepoKey, false)
         val uriHandler = LocalUriHandler.current
-        val currentVersion = BuildConfig.VERSION_NAME
 
 
         val isSystemInDarkTheme = isSystemInDarkTheme()
@@ -511,7 +506,6 @@ class MainActivity : ComponentActivity() {
         }
 
         val gitHubViewModel: GitHubViewModel = hiltViewModel()
-        val isStarred by gitHubViewModel.isStarred.collectAsState()
         val showThankYouDialog by gitHubViewModel.showThankYouDialog.collectAsState()
 
         LaunchedEffect(Unit) {
@@ -523,39 +517,6 @@ class MainActivity : ComponentActivity() {
             pureBlack = pureBlack,
             themeColor = themeColor,
         ) {
-            if (lastSeenStarPromptVersion != currentVersion && !hasStarredRepo && !isStarred) {
-                ActionPromptDialog(
-                    title = "Support ViviMusic \u2B50",
-                    onDismiss = { setLastSeenStarPromptVersion(currentVersion) },
-                    onConfirm = {
-                        setLastSeenStarPromptVersion(currentVersion)
-                        uriHandler.openUri("https://github.com/vivizzz007/vivi-music")
-                    },
-                    onCancel = { setLastSeenStarPromptVersion(currentVersion) },
-                    content = {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 8.dp),
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            Text(
-                                text = "If you enjoy using ViviMusic, would you consider starring our repository on GitHub?",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "It takes just a second and helps keep our open-source project alive and growing!",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                    }
-                )
-            }
-
             if (showThankYouDialog) {
                 ActionPromptDialog(
                     title = "Thank You!",

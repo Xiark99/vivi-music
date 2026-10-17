@@ -63,19 +63,6 @@
             android:process=":crash" />
 
         <activity
-            android:name=".WelcomeActivity"
-            android:exported="true"
-            android:icon="@mipmap/ic_launcher"
-            android:label="@string/app_name"
-            android:roundIcon="@mipmap/ic_launcher_round"
-            android:theme="@style/Theme.vivimusic">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-
-        <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTask"
@@ -193,6 +180,20 @@
                 android:name="android.app.shortcuts"
                 android:resource="@xml/shortcuts" />
         </activity>
+
+        <!-- Keep the existing launcher component name for installed home-screen shortcuts. -->
+        <activity-alias
+            android:name=".WelcomeActivity"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:label="@string/app_name"
+            android:roundIcon="@mipmap/ic_launcher_round"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
 
         <activity-alias
             android:name=".MainActivityAlias"

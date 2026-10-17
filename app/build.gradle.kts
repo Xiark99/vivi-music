@@ -25,7 +25,7 @@ android {
         applicationId = "com.vivi.vivimusic"
         minSdk = 26
         targetSdk = 37
-        versionCode = 84
+        versionCode = 85
         val betaVersionName = project.findProperty("betaVersionName") as String?
         versionName = betaVersionName ?: "3.0.0"
 

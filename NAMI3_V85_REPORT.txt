@@ -1,0 +1,122 @@
+Nami 3.0.0 / versionCode 85 改修レポート
+
+作業場所: C:\dev\nami-3.0
+ブランチ: feature/nami-3.0
+v84チェックポイント: 812659c9
+作業前のv84ソース・報告書13ファイルをローカルコミットで保存した。
+既存のbaseline profile .dm生成物2ファイルは未ステージのまま保持した。
+署名鍵、パスワード、local.properties、APKはコミットしていない。
+今回のv85改修はチェックポイント後の未コミット差分。
+
+1. Support ViviMusicポップアップ: 実装完了
+MainActivityから「Support ViviMusic ⭐」のダイアログ本体と自動表示条件を削除。
+バージョン/スター状態を比較して表示する処理は存在しなくなった。
+関連する購読とLastSeenStarPromptVersionKey定義も削除した。
+非表示フラグを更新して隠す方式ではなく、生成するコードを除去しているため、
+初回・更新後・再起動・起動回数・既存設定値に関係なくこのポップアップは出ない。
+Thank You等の他のダイアログと設定内のGitHubリンクは変更していない。
+
+2. Welcome画面: 実装完了
+WelcomeActivity.ktを削除。Welcome Pager、言語選択、開始ボタン、
+FORCE_SHOW、初回判定による分岐、MainActivityへの中継起動を除去した。
+他のファイルから使われていないWelcome専用UI部品も同時に削除した。
+IsFirstRunKeyの不要な定義を削除したが、保存済みDataStoreの値や既存設定を
+消去/書き換える処理は加えていない。
+
+Manifestでは、従来の .WelcomeActivity というランチャーコンポーネント名を
+MainActivityへ直接向けるactivity-aliasとして保持した。
+旧名を残す理由は、更新前にホームへ配置したアプリアイコン/ショートカットの
+起動先を維持するため。Welcomeクラスや画面への遷移が残っているわけではない。
+Aliasの宣言は対象MainActivityより後に置き、LAUNCHER入口は1つだけ。
+MainActivityのsingleTask、Deep Link/共有/ショートカットのintent-filterは同一。
+余分なWelcome Activityをバックスタックに積まない。
+
+初回は既存のDefaultOpenTabKeyのデフォルトHOMEを利用してホームを表示する。
+既存ユーザーが設定した初期タブ・言語等は維持する。
+言語未設定時は既存のシステム言語フォールバックを使う。
+MainActivity.onCreate、onStart、onNewIntentはチェックポイントと同一。
+Hilt/DB注入、サービス接続、Listen Together初期化、テーマ、言語処理を維持。
+Android 13以上のPOST_NOTIFICATIONS権限要求は既存のMainActivity.onStartで継続。
+Welcomeが行っていた初期設定は言語の任意選択と初回フラグだけであり、
+DB生成をWelcomeへ依存する処理はない。新たな設定値の一括上書きはしていない。
+
+3. 青色アイコン: ユーザーの追加指示により保留・未変更
+作業フォルダを隠しファイル/ignore対象も含めて検索したが、追加の青色Nami PNGは
+見つからなかった。Nami名のPNGは既存の以下2点のみ (いずれも追跡済み)。
+app/src/main/res/drawable/nami_launcher_foreground.png
+app/src/main/res/drawable/nami_launcher_monochrome.png
+既存のカラー素材は現在使用中の紫/青のリング・再生マークであることを目視確認。
+ホーム左上のvivi_music_small_icon.pngも同じ既存Namiシンボルであることを確認した。
+素材がない場合は別デザインを作らず報告する、というユーザー指定に従い、
+ランチャー/Adaptive/Round/Monochrome/ホーム等の画像は一切変更していない。
+素材の確認後、ユーザーから「アイコン変更は保留で」と回答があったため、
+今回はアイコン変更を実施しないことが確定した。
+
+参考BitChordリポジトリとGPL-3.0 LICENSEは確認した。
+https://github.com/kushagrasinghx/BitChord
+https://github.com/kushagrasinghx/BitChord/blob/main/LICENSE
+今回はBitChordの画像やコードをコピー/改変/再配布していない。
+新しいアイコン生成や、独断での色/シンボル変更もしていない。
+
+4. 検証
+実行コマンド:
+.\gradlew.bat :app:compileUniversalFossCustomReleaseKotlin :app:testUniversalFossDebugUnitTest :Motionartwork:test :app:lintUniversalFossCustomRelease :app:processUniversalFossCustomReleaseManifest --no-configuration-cache --console=plain
+最終ログ: nami-v85-final.log (生成ログのためコミット対象外)
+最終結果: BUILD SUCCESSFUL in 8m 25s。
+FOSS Custom ReleaseのKotlinコンパイル成功。
+単体テスト34件成功 (アプリ19件、Motionartwork15件)、失敗/エラー0。
+lintタスク完了: Error 84 / Warning 799 / Hint 5。
+v84はError 84 / Warning 775 / Hint 5。エラーID/メッセージ/対象ファイルの組は
+同一で新規エラーは0、今回変更した行への指摘も0。
+Welcome削除で25件のUnusedResources警告が新たに発生し、既存警告が1件減少。
+対象はWelcome専用の画像4件と文言21件で、現在は参照されず表示されない。
+既存の翻訳ファイル/画像を余分に変更しないため、これらは削除していない。
+既存abortOnError=falseによりタスクは成功するが、lintがクリーンではない。
+既存のAPIレベル/Compose/翻訳リソース/local.properties等のエラーは未修正。
+git diff --checkは問題なし。
+
+起動フロー確認 (ソース/統合Manifestの契約チェック):
+・既存ランチャーコンポーネント名が不変で、MainActivityへ直接解決される。
+・LAUNCHER入口は1つ、Welcome Activityクラスの宣言はない。
+・Aliasより先にMainActivityが宣言され、singleTaskを維持する。
+・MainActivityの全属性/intent-filter/shortcut meta-dataはv84と同一。
+・ManifestのAndroid権限定義はv84と同一。
+・onCreate/onStart/onNewIntentと残りの全ダイアログ/ナビゲーション処理は同一。
+・Support表示コード、Welcome Pager、FORCE_SHOW、初回フラグ参照はソースに残っていない。
+・生成Manifestのcom.vivi.vivimusic.custom / 3.0.0 / versionCode 85を確認。
+実機で新規インストールや上書き起動を実行したという意味ではない。
+
+アイコン整合性:
+既存35個の関連画像/Adaptive Icon XML等を検証。
+PNG/WebPをデコード検証し、XMLのforeground/background/monochrome参照先の存在を確認。
+ランチャー/Round/Static/Monochromeの参照整合性に問題なし。
+app/src/main/res以下の全リソースはv84から変更なし。
+青色素材への差し替え結果については、素材未提供のため未検証。
+
+保護対象:
+Better Lyrics Canvas、Motion Artwork Auto、Apple Musicプレイヤー/音量設定、
+歌詞翻訳/再翻訳/色、Library Mix、音声再生/履歴同期/Task Clear、プレイリスト、
+DB、バックアップ、アイコン/アプリ名の実装ファイルは変更していない。
+applicationId/署名設定/DBスキーマは維持。
+YouTube動画プレイヤーの復活、指定外の機能追加、他worktreeの変更はない。
+署名付きAPK作成、GitHub push、Release公開は未実施。
+
+5. 実機確認事項
+・テスト環境の新規インストールでWelcomeなしにホームへ入り、通知権限要求が出る。
+・v84への上書き更新後、既存ホーム画面アイコンから起動できる。
+・Supportポップアップが初回/更新後/繰り返し起動でも出ない。
+・通常起動、YouTube共有/Deep Link、プレイリスト/アルバム/再生画面への遷移。
+・既に起動中のアプリへのリンク、新規起動時のリンク、戻る操作/再起動。
+・既存の言語/初期タブ/ライブラリ/履歴/プレイリスト/バックアップが残っている。
+・音声再生、公式履歴同期、Task Clear、Canvas Auto、音量バー、翻訳/再翻訳。
+・青色アイコンの変更は実施していないため、現時点では現在のアイコンのまま。
+署名付きAPKはユーザー指定により作成していない。署名設定は変更なし。
+
+6. 変更ファイル (既存 .dm 生成物2ファイルは除外)
+NAMI3_BUILD.txt
+NAMI3_V85_REPORT.txt
+app/build.gradle.kts
+app/src/main/AndroidManifest.xml
+app/src/main/kotlin/com/music/vivi/MainActivity.kt
+app/src/main/kotlin/com/music/vivi/WelcomeActivity.kt
+app/src/main/kotlin/com/music/vivi/constants/PreferenceKeys.kt

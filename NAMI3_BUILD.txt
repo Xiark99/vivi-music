@@ -5,7 +5,7 @@ Branch: feature/nami-3.0
 Official source: b6.0.8-r7 (b41c9e563ade592c03435d91d984a0ff56a42861)
 Nami 2.0 source: ea1cc440
 
-Version: 3.0.0 (84), previously Nami 3.0.0 (83)
+Version: 3.0.0 (85), previously Nami 3.0.0 (84)
 Application ID: com.vivi.vivimusic.custom (unchanged)
 Keystore: C:\Users\akazu\.android\keystores\vivi-custom-release.jks (unchanged)
 Alias: vivi-custom (unchanged)

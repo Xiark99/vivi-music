@@ -18,7 +18,6 @@ import kotlin.math.sin
 
 import com.music.innertube.models.IpVersion
 
-val IsFirstRunKey = booleanPreferencesKey("isFirstRun")
 val EnableDynamicIconKey = booleanPreferencesKey("enableDynamicIcon")
 val EnableHighRefreshRateKey = booleanPreferencesKey("enableHighRefreshRate")
 val GitHubAccessTokenKey = stringPreferencesKey("gitHubAccessToken")
@@ -83,7 +82,6 @@ val ResumeOnBluetoothConnectKey = booleanPreferencesKey("resumeOnBluetoothConnec
 val KeepScreenOn = booleanPreferencesKey("keepScreenOn")
 val DeveloperModeKey = booleanPreferencesKey("developerMode")
 val HasStarredRepoKey = booleanPreferencesKey("hasStarredRepo")
-val LastSeenStarPromptVersionKey = stringPreferencesKey("lastSeenStarPromptVersion")
 
 enum class SliderStyle {
     DEFAULT,
