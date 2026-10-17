@@ -30,6 +30,51 @@ class NamiIconTest(unittest.TestCase):
                                                      (33 * scale) ** 2)
                 with Image.open(RES / f"mipmap-{density}/ic_launcher.png") as legacy:
                     self.assertEqual(legacy.size, (round(48 * scale),) * 2)
+                    alpha = legacy.convert("RGBA").getchannel("A")
+                    self.assertGreater(alpha.getpixel((0, legacy.height // 2)), 200)
+                    self.assertGreater(alpha.getpixel((legacy.width - 1, legacy.height // 2)), 200)
+                    self.assertGreater(legacy.getpixel((0, legacy.height // 2))[2], 200)
+                    self.assertGreater(legacy.getpixel((legacy.width - 1, legacy.height // 2))[2], 200)
+
+    def test_full_bleed_background_has_no_matte_or_symbol(self):
+        paths = list(RES.glob("mipmap-*/ic_launcher_background.png"))
+        self.assertEqual(len(paths), 5)
+        for path in paths:
+            with self.subTest(path=str(path)), Image.open(path) as image:
+                image = image.convert("RGBA")
+                self.assertEqual(image.getchannel("A").getextrema(), (255, 255))
+                self.assertGreaterEqual(image.getchannel("B").getextrema()[0], 200)
+                self.assertLess(image.getchannel("R").getextrema()[1], 100)
+                green_low, green_high = image.getchannel("G").getextrema()
+                self.assertGreater(green_high - green_low, 100)
+
+    def test_normal_and_themed_symbol_geometry_matches(self):
+        for folder in RES.glob("mipmap-*"):
+            foreground = folder / "ic_launcher_foreground.png"
+            if not foreground.exists():
+                continue
+            with self.subTest(folder=folder.name), Image.open(foreground) as image, \
+                    Image.open(folder / "ic_launcher_monochrome.png") as mono:
+                image = image.convert("RGBA")
+                alpha = image.getchannel("A")
+                self.assertEqual(alpha.tobytes(), mono.convert("RGBA").getchannel("A").tobytes())
+                bounds = alpha.point(lambda value: 255 if value > 32 else 0).getbbox()
+                self.assertGreater(bounds[2] - bounds[0], image.width * .44)
+                self.assertLess(bounds[2] - bounds[0], image.width * .49)
+                for red, green, blue, opacity in image.get_flattened_data():
+                    if opacity > 128:
+                        self.assertGreater(min(red, green, blue), 195)
+
+    def test_all_launcher_variants_use_full_bleed_gradient(self):
+        paths = [RES / "mipmap-anydpi-v26/ic_launcher.xml", RES / "mipmap-anydpi-v26/ic_launcher_round.xml",
+                 RES / "mipmap-anydpi/ic_launcher_static.xml", RES / "mipmap-anydpi/ic_launcher_static_round.xml",
+                 RES / "drawable/ic_launcher.xml"]
+        for path in paths:
+            with self.subTest(path=path.name):
+                root = ET.parse(path).getroot()
+                self.assertEqual(root.find("background").get(ANDROID + "drawable"),
+                                 "@mipmap/ic_launcher_background")
+                self.assertIsNone(root.find(".//inset"))
 
     def test_monochrome_is_three_white_strokes(self):
         for path in [RES / "drawable/nami_launcher_monochrome.png",

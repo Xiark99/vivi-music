@@ -1,0 +1,133 @@
+Nami 3.0.0 / versionCode 87 アイコン外枠修正レポート
+
+作業場所: C:\dev\nami-3.0
+ブランチ: feature/nami-3.0
+作業前チェックポイント: 7c67c384 chore(nami): checkpoint verified version 86
+v86のソース・アイコン・報告書54ファイルをローカルコミットに保存した。
+作業前から存在したbaseline profile .dm生成物2件は未ステージのまま保持した。
+署名鍵・パスワード・local.properties・APK・ビルド生成物はコミットしていない。
+今回のv87修正はチェックポイント後の未コミット差分。
+
+1. 枠が出ていた原因
+v86では108dpのAdaptive Iconレイヤーに、元画像の青い角丸カード全体を
+幅54dpで中央配置し、その背面を濃紺#041840で塗っていた。
+通常の72dp表示領域に対しカードは75%の幅しかなく、残った濃紺の部分が
+外枠のように見えていた。白いシンボルではなくカード全体に安全余白を
+設けたため、Android側のマスクの内側にもう一枚のカードが見える構造だった。
+Legacy PNGにも75%への縮小と濃紺背景が入っていた。
+
+2. foreground / background / insetの修正
+Background: 提供PNGの青グラデーションを全面の不透明な背景として分離した。
+白線の下と元画像の角丸の外側は、原画像の青領域の色から補間・延長する。
+外周に原画像の黒いマットや濃紺の別背景を敷かない。
+元画像の比率を保って中央72dpに合わせ、108dpレイヤーの残り36dpは
+端の青色を延長したoverscan領域とした。Android側のマスクで外周形状が決まる。
+Foreground: 元画像の白い3本線だけを透過レイヤーとして分離。
+原画像内の比率・位置関係を保ち、通常アイコンの白線幅は約37.6dpから50.1dpに拡大。
+白い3本線は中央66dpの安全円に収まり、背景は安全円の外まで塗りつぶす。
+Monochrome: Foregroundと同一のアルファ・配置を持つ単色版に揃えた。
+テーマアイコンの前景色・背景色はAndroid/One UIの設定に従う。
+通常/静的/Roundの各Adaptive XMLは同じ背景・シンボル構成を参照する。
+背景はすべて@mipmap/ic_launcher_backgroundへ直接向け、密度別PNGを共有する。
+ランチャー用XMLへ追加のinsetやpaddingは設けていない。
+Legacy PNGは元の角丸画像をキャンバス全幅で使用し、濃紺の外枠を除去した。
+不要になった濃紺の色リソースを削除した。
+
+3. 適用箇所と既存機能
+Manifestのapplication icon / roundIcon、WelcomeActivityを含む既存の
+ランチャーエイリアスとコンポーネント名は変更せず、参照先の画像を更新。
+ホーム画面・アプリ一覧・最近使ったアプリ・起動ロゴが使うアイコンを統一する。
+アプリ内のホーム/設定/プレイヤーなどが使うdrawable/icon.pngはv86と同一。
+白線専用へ変わったAdaptive前景をウィジェットのアルバムアートとして
+流用しないよう、ウィジェットだけは元のフルカラーiconへ参照を変更した。
+ウィジェット既定アートの従来の大きさは25%のinsetで維持している。
+このinsetはウィジェット専用で、ランチャーには適用しない。
+通知アイコン、元のNami_icon_blue.png、全Kotlinソース、Motionartwork、
+Manifest、applicationId、署名設定、DB/スキーマを変更していない。
+Better Lyrics/Auto、Apple Music風プレイヤー、音量設定、翻訳/再翻訳、
+履歴同期、Library Mix、Task Clear、Welcome/Support廃止などの処理を維持。
+動画プレイヤーや動画ストリーム機能は追加していない。
+versionName 3.0.0 / versionCode 87 / package com.vivi.vivimusic.custom。
+
+4. 検証
+画像契約テスト: tools/test_nami_icons.py の9件が成功。
+原画像ハッシュ、密度別サイズ、前景の安全円、背景の全面不透明性/青色/階調、
+通常とMonochromeのアルファ一致、白線3本の連結成分、Legacyの余白除去、
+Round参照、全Adaptive XML、ランチャーエイリアス維持などを確認。
+正方形・円形・角丸・テーマアイコンのプレビューを生成し、v86との比較を目視確認。
+原画像・アプリ内ロゴ・通知アイコンがv86とバイト単位で同一であることを確認。
+コンパイル・単体テスト・lintの最終結果は末尾に記載。
+
+5. 実機確認事項
+署名付きAPKは作成/インストールしていないため、One UI実機上の表示確認と
+上書き更新後の起動確認は未実施。プレビューとリソース/コード上での確認を実施した。
+既存と同じ鍵で署名後、アンインストールせず上書き更新する。
+・通常アイコン/静的アイコン設定の双方で、ホームとアプリ一覧の濃い枠が消えること。
+・One UIでテーマアイコンON/OFF、ライト/ダーク、壁紙配色を切り替えたときの白線形状。
+・Round/角丸など各マスクでシンボルが欠けず、青背景が外周まで届くこと。
+・最近使ったアプリと起動ロゴ、既存のホームショートカットからの起動。
+・既存の設定、音声再生、Canvas、翻訳、履歴、ライブラリ、プレイリストを確認。
+旧アイコンが残る場合は、ランチャーの表示更新や端末再起動後にも確認する。
+実機のマスクやテーマ配色、キャッシュの状態は画像プレビューでは完全再現できない。
+署名付きAPK作成、GitHub push、Release公開は行っていない。
+
+
+6. 変更ファイル一覧（既存の.dm生成物2件を除く）
+C:\dev\nami-3.0\NAMI3_BUILD.txt
+C:\dev\nami-3.0\NAMI3_V87_REPORT.txt
+C:\dev\nami-3.0\app\build.gradle.kts
+C:\dev\nami-3.0\app\src\main\res\drawable\ic_launcher.xml
+C:\dev\nami-3.0\app\src\main\res\drawable\ic_launcher_foreground.webp
+C:\dev\nami-3.0\app\src\main\res\drawable\ic_launcher_monochrome.webp
+C:\dev\nami-3.0\app\src\main\res\drawable\nami_launcher_foreground.png
+C:\dev\nami-3.0\app\src\main\res\drawable\nami_launcher_monochrome.png
+C:\dev\nami-3.0\app\src\main\res\drawable\widget_turntable_default_art.xml
+C:\dev\nami-3.0\app\src\main\res\mipmap-anydpi\ic_launcher_static.xml
+C:\dev\nami-3.0\app\src\main\res\mipmap-anydpi\ic_launcher_static_round.xml
+C:\dev\nami-3.0\app\src\main\res\mipmap-hdpi\ic_launcher.png
+C:\dev\nami-3.0\app\src\main\res\mipmap-hdpi\ic_launcher_background.png
+C:\dev\nami-3.0\app\src\main\res\mipmap-hdpi\ic_launcher_foreground.png
+C:\dev\nami-3.0\app\src\main\res\mipmap-hdpi\ic_launcher_monochrome.png
+C:\dev\nami-3.0\app\src\main\res\mipmap-mdpi\ic_launcher.png
+C:\dev\nami-3.0\app\src\main\res\mipmap-mdpi\ic_launcher_background.png
+C:\dev\nami-3.0\app\src\main\res\mipmap-mdpi\ic_launcher_foreground.png
+C:\dev\nami-3.0\app\src\main\res\mipmap-mdpi\ic_launcher_monochrome.png
+C:\dev\nami-3.0\app\src\main\res\mipmap-xhdpi\ic_launcher.png
+C:\dev\nami-3.0\app\src\main\res\mipmap-xhdpi\ic_launcher_background.png
+C:\dev\nami-3.0\app\src\main\res\mipmap-xhdpi\ic_launcher_foreground.png
+C:\dev\nami-3.0\app\src\main\res\mipmap-xhdpi\ic_launcher_monochrome.png
+C:\dev\nami-3.0\app\src\main\res\mipmap-xxhdpi\ic_launcher.png
+C:\dev\nami-3.0\app\src\main\res\mipmap-xxhdpi\ic_launcher_background.png
+C:\dev\nami-3.0\app\src\main\res\mipmap-xxhdpi\ic_launcher_foreground.png
+C:\dev\nami-3.0\app\src\main\res\mipmap-xxhdpi\ic_launcher_monochrome.png
+C:\dev\nami-3.0\app\src\main\res\mipmap-xxxhdpi\ic_launcher.png
+C:\dev\nami-3.0\app\src\main\res\mipmap-xxxhdpi\ic_launcher_background.png
+C:\dev\nami-3.0\app\src\main\res\mipmap-xxxhdpi\ic_launcher_foreground.png
+C:\dev\nami-3.0\app\src\main\res\mipmap-xxxhdpi\ic_launcher_monochrome.png
+C:\dev\nami-3.0\app\src\main\res\values\colors.xml
+C:\dev\nami-3.0\app\src\main\res\values\ic_launcher_background.xml
+C:\dev\nami-3.0\tools\generate_nami_icons.py
+C:\dev\nami-3.0\tools\test_nami_icons.py
+
+7. 最終検証結果
+FOSS Custom Release Kotlin/Java・Androidリソースコンパイル: 成功。
+最終Gradle: BUILD SUCCESSFUL in 3m 46s / 472 tasks (30 executed, 442 up-to-date)。
+単体テスト: app 19件 + Motionartwork 15件 = 34件、失敗/エラー/スキップなし。
+初回に両テストタスクへ--rerunを指定して実行。最終確認でもアプリ側19件を実行し、
+変更のないMotionartwork側はUP-TO-DATE。画像契約テスト9件も最終状態で成功。
+lint完了: v86 {'Warning': 793, 'Error': 84, 'Hint': 5} → v87 {'Warning': 787, 'Error': 84, 'Hint': 5}。
+診断のid/severity/message/対象ファイルで比較し、追加0件、削除6件。
+新規エラー・警告0件。既存エラー84件は残るためlint cleanではない。
+背景画像の密度未指定/重複警告2件は密度別mipmapの共有参照に整理して解消。
+旧LegacyアイコンのIconLauncherShape警告5件と、不要な濃紺リソースの警告も解消。
+merged ManifestでversionName/versionCode/applicationIdを確認。
+全Kotlin・Manifest・DB/Motionartwork変更なし、署名設定変更なしを差分で確認。
+git diff --check成功。ステージ済み変更なし。
+
+検証コマンド（署名付きAPKは生成しない）:
+.\gradlew.bat :app:compileUniversalFossCustomReleaseKotlin :app:testUniversalFossDebugUnitTest :Motionartwork:test :app:lintUniversalFossCustomRelease :app:processUniversalFossCustomReleaseManifest --no-daemon --no-configuration-cache --console=plain
+画像検証: Python + Pillowで tools/test_nami_icons.py を実行。
+
+実行ログ: C:\dev\nami-3.0\nami-v87-final.log
+lint: C:\dev\nami-3.0\app\build\reports\lint-results-universalFossCustomRelease.html
+比較プレビュー: C:\dev\nami-3.0\app\build\reports\nami-v87-comparison.png
