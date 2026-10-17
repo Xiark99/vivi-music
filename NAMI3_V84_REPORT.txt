@@ -1,0 +1,134 @@
+Nami 3.0.0 / versionCode 84 改修レポート
+
+作業場所: C:\dev\nami-3.0
+ブランチ: feature/nami-3.0
+実機確認済みversion 83チェックポイント: 98812e22
+前回の未コミット変更26ファイルをローカルコミットで保護した。
+既存baseline profile生成物 .dm 2ファイルは未ステージで保持した。
+署名鍵、パスワード、local.properties、APKをコミットしていない。
+今回のversion 84改修はチェックポイント後の未コミット差分。
+
+1. Autoモードの登録取得元・優先順位
+Apple Music -> Tidal -> VIVIMUSIC -> Better Lyrics Canvas
+既存コードの先頭3取得元の順番を維持してBetter Lyricsを最後に追加した。
+実際の旧コードと異なっていたAuto設定の英語説明文も、この順番へ修正した。
+Spotify Canvasは従来どおり別設定・認証付きの独立機能で、Motion Artworkの
+取得元enumの対象外。Spotifyの既存処理は変更していない。
+
+標準サムネイル、Apple Music背景、V2縦/横プレイヤーの3つの取得経路が
+共通のAutoMotionartworkResolverを使用する。
+候補は順番に試し、最初に有効なアニメーションが見つかれば終了する。
+すべての取得元から同時にダウンロードしない。
+各取得元の既存検索・既存キャッシュを利用する。
+既存3取得元には従来の曲・アーティスト・アルバム一致判定を適用する。
+Better Lyricsは既存の個別取得処理をそのまま使用する。同処理内の厳格な
+曲名/アーティスト一致判定を通った結果のみ採用する。albumNameを返さない
+APIのため、Auto結果を後段でアルバム名必須判定に通して破棄しないよう修正。
+全候補共通で空URL、不正URL、HTTPS以外のURLを採用しない。
+URLの取得・一致判定までを検証し、再生/デコード確認は端末で行う。
+
+1取得元につき8秒の期限。例外・HTTP失敗・タイムアウト・不一致・Canvasなし
+の場合は次の取得元へ進む。全候補失敗時はnullを返して静止画を表示する。
+通信待ちは既存のLaunchedEffect + Dispatchers.IOで行い、音声サービスは
+呼び出さない。取得元がCoroutineのキャンセルを捕捉してしまう場合も、
+各取得後にensureActiveで確認し、曲変更のキャンセルを失敗扱いにして
+次の取得元へ進んだり、古い結果を保存したりしない。
+
+Autoの成功/失敗結果を曲名・アーティスト・アルバム・地域の組で
+最大128件、60秒キャッシュ。Mutexで複数画面の重複取得を抑える。
+Autoは期限のない従来の画面側IDキャッシュを迂回し、共通キャッシュを使う。
+各取得元の既存内部キャッシュは利用し、個別選択の画面側キャッシュは維持。
+曲/取得元変更時の表示状態リセットとLaunchedEffectによるキャンセルを維持。
+Better Lyricsとその他の個別取得元の検索・検証・キャッシュ処理は変更なし。
+
+2. Apple Music風プレイヤー音量バー
+追加場所: 設定 > プレイヤーと音声 > プレイヤーグループ、音質の直下。
+日本語: 音量バーを表示
+英語: Show Volume Slider
+説明文でApple Music風プレイヤー専用であることを明示した。
+ユーザー指定の日本語/英語表示に対応するため、日本語の専用リソースを新規追加。
+既存の日本語翻訳ファイルには変更していない。
+
+保存キー: showAppleMusicVolumeSlider (DataStore boolean)
+初期値false。設定とプレイヤーが同じキーを監視し、変更を反映する。
+OFFでは音量バーと専用スペーサーを生成せず、version 83の配置を維持する。
+ONでは非V2・旧Apple Music風プレイヤーの再生操作の下、Bluetooth情報の上に
+cb275ae7で削除される前のデザイン/配置を復元した。
+左右の20dp音量アイコン、12dp間隔、サムなしのバー、10dp/操作中16dpの
+トラック高さ、操作中アイコン拡大、システム音量変更時150msのアニメーション。
+既存PlayerSliderTrackを使用する。
+
+端末再生はAudioManager.STREAM_MUSICの音量を変更し、ハードウェア音量
+ボタン等による変更もBroadcastReceiverで反映する。音量書込はIOへ移し、
+Conflated Channelで素早い操作による古い書込の滞留/順序逆転を防ぐ。
+Cast時は既存castVolumeとsetVolumeを使用する。
+Receiverはバー表示中だけ登録し、非表示時に解除する。
+Media3の音量や音声フォーカス処理、システム側の音量設定方式は変更しない。
+他のプレイヤーの音量バー、コメントボタン削除、デバイス操作、タイマー、歌詞を維持。
+
+3. 保護対象・互換性
+applicationId/署名設定は変更なし。インストールID com.vivi.vivimusic.custom。
+versionName 3.0.0、versionCode 84。
+Better Lyricsを含むMotionartworkモジュール内の既存ソースはすべて同一。
+歌詞カラー、再翻訳、追加プロンプト、Queue、ホーム音声認識ボタン削除、
+V2プレイヤーの音量バー、MotionartworkPlayer、MusicService、公式履歴同期、
+Library Mix、DB、バックアップなど、保護対象のアプリ17ファイルは98812e22と同一。
+DBスキーマ、バックアップ形式、アイコンに変更なし。
+YouTube動画プレイヤーや動画ストリーム取得処理は復活させていない。
+他worktreeの変更、reset --hard、git clean、force push、push、Release公開は未実施。
+署名付きAPKはユーザー指定により作成しない。
+
+4. 検証結果
+実行コマンド:
+.\gradlew.bat :app:compileUniversalFossCustomReleaseKotlin :app:testUniversalFossDebugUnitTest :Motionartwork:test :app:lintUniversalFossCustomRelease :app:processUniversalFossCustomReleaseManifest --no-configuration-cache --console=plain
+最終検証ログ: nami-v84-final.log (生成ログのためコミット対象外)
+初回コンパイルでは新しい音量バーのPlayerSliderTrack import不足を検出し修正した。
+最終検証結果: BUILD SUCCESSFUL in 4m 34s。
+FOSS Custom ReleaseのKotlinコンパイル成功。
+単体テスト34件成功 (アプリ19件、Motionartwork15件)、失敗/エラー0。
+うち新規Autoテスト11件、既存Better Lyricsのテスト13件を含む。
+lintタスク完了。既存と同じError 84 / Warning 775 / Hint 5。
+前回レポートとのエラーID・メッセージ・対象ファイルの組は同一で、新規エラーなし。
+最終コードの変更/追加行への指摘は0件。
+追加したFloat状態の最適化ヒント1件はmutableFloatStateOfへ置き換えて解消した。
+既存abortOnError=falseによりタスクは成功終了するが、lintがクリーンではない。
+既存のAPIレベル、Compose、翻訳リソース、local.properties等の指摘は未修正。
+生成Manifestもcom.vivi.vivimusic.custom / 3.0.0 / versionCode 84を確認。
+git diff --checkも問題なし。
+
+Auto単体テストの対象:
+Better Lyricsだけで成功、既存取得元ごとの成功と後続取得抑止、例外フォールバック、
+タイムアウト、取得元によるタイムアウト例外の捕捉、無効URL、全候補失敗と
+失敗キャッシュ、成功キャッシュと期限、複数画面の同時取得、曲変更キャンセル、
+曲/アーティスト/アルバム/地域のキャッシュ分離。
+実機で実際のAuto検索・ループ再生・音量変更を確認したという意味ではない。
+
+5. 実機確認事項
+・AutoでBetter LyricsにのみCanvasがある曲を再生し、待機後に表示される。
+・Apple Music/Tidal/VIVIMUSICのみにある曲もAutoで表示される。
+・ネットワーク失敗/タイムアウト時に次の取得元へ進む。
+・全候補が失敗する曲/オフライン時に静止画で音声再生を継続できる。
+・素早い曲送りで古いCanvasが残らない。標準/V2縦/V2横/Apple Music背景で確認。
+・Better Lyricsおよび他の個別取得元を選んだ場合はversion 83同様に動作する。
+・音量バー初期OFF、ON/OFF即時反映、アプリ再起動後の設定保持。
+・Apple Music風プレイヤーのみで表示され、OFF時の余白と配置がversion 83と同じ。
+・ドラッグ/ハードウェア音量ボタン/Bluetooth/Castで音量とバーが同期する。
+・画面回転、小さい画面、歌詞表示時に操作部分が不自然にならない。
+・コメントボタンが復活せず、デバイス操作/タイマー/歌詞/再翻訳が利用できる。
+・通常音声再生、公式履歴同期、Stop Music on Task Clearを確認する。
+署名付きAPKは作成していない。ビルド手順はNAMI3_BUILD.txtに保持。
+
+6. 変更ファイル (既存の .dm 生成物2ファイルを除く)
+NAMI3_BUILD.txt
+NAMI3_V84_REPORT.txt
+app/build.gradle.kts
+app/src/main/kotlin/com/music/vivi/constants/PreferenceKeys.kt
+app/src/main/kotlin/com/music/vivi/ui/player/AppleMusicVolumeSlider.kt
+app/src/main/kotlin/com/music/vivi/ui/player/AutoMotionartworkResolver.kt
+app/src/main/kotlin/com/music/vivi/ui/player/Player.kt
+app/src/main/kotlin/com/music/vivi/ui/player/PlayerV2Motionartowek.kt
+app/src/main/kotlin/com/music/vivi/ui/player/Thumbnail.kt
+app/src/main/kotlin/com/music/vivi/ui/screens/settings/PlayerSettings.kt
+app/src/main/res/values-ja/nami_player_strings.xml
+app/src/main/res/values/vivi_strings.xml
+app/src/test/kotlin/com/music/vivi/ui/player/AutoMotionartworkResolverTest.kt

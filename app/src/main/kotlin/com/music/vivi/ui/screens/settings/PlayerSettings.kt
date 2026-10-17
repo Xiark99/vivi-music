@@ -229,6 +229,9 @@ fun PlayerSettings(
         CanvasThumbnailAnimationKey,
         defaultValue = true
     )
+    val (showAppleMusicVolumeSlider, onShowAppleMusicVolumeSliderChange) = rememberPreference(
+        com.music.vivi.constants.ShowAppleMusicVolumeSliderKey, defaultValue = false
+    )
     val (canvasSource) = rememberEnumPreference(
         MotionartworkSourceKey,
         defaultValue = MotionartworkSource.AUTO
@@ -345,6 +348,18 @@ fun PlayerSettings(
                         )
                     },
                     onClick = { showAudioQualityDialog = true }
+                ))
+                add(Material3SettingsItem(
+                    icon = painterResource(R.drawable.volume_up),
+                    title = { Text(stringResource(R.string.show_apple_music_volume_slider)) },
+                    description = { Text(stringResource(R.string.show_apple_music_volume_slider_desc)) },
+                    trailingContent = {
+                        Switch(
+                            checked = showAppleMusicVolumeSlider,
+                            onCheckedChange = onShowAppleMusicVolumeSliderChange
+                        )
+                    },
+                    onClick = { onShowAppleMusicVolumeSliderChange(!showAppleMusicVolumeSlider) }
                 ))
                 // JioSaavn settings navigation
                 add(Material3SettingsItem(

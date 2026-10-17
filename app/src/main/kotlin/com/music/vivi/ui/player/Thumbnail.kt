@@ -769,7 +769,7 @@ private fun ThumbnailItem(
 
                 LaunchedEffect(item.mediaId, albumTitle, motionartworkSource) {
                     val cacheKey = "${item.mediaId}:${motionartworkSource.name}"
-                    MotionartworkPlaybackCache.get(cacheKey)?.takeIf { motionartworkSource != MotionartworkSource.BETTER_LYRICS }?.let { cached ->
+                    MotionartworkPlaybackCache.get(cacheKey)?.takeIf { motionartworkSource !in setOf(MotionartworkSource.BETTER_LYRICS, MotionartworkSource.AUTO) }?.let { cached ->
                         canvasArtwork = cached
                         return@LaunchedEffect
                     }
@@ -797,25 +797,7 @@ private fun ThumbnailItem(
                                 BetterLyricsMotionartworkProvider.getBySongArtist(songTitle, artistName, storefront)
                             }
                             MotionartworkSource.AUTO -> {
-                                searchTasks.firstNotNullOfOrNull { (s, a) ->
-                                    val album = albumName ?: ""
-                                    AppleMusicMotionartworkProvider.getBySongArtist(
-                                        song = s,
-                                        artist = a,
-                                        album = albumName,
-                                        storefront = storefront
-                                    )?.takeIf { !it.preferredAnimationUrl.isNullOrBlank() && validateMotionartworkMatch(it, s, a, album) }
-                                        ?: TidalMotionartworkProvider.getBySongArtist(
-                                            song = s,
-                                            artist = a,
-                                            album = albumName
-                                        )?.takeIf { !it.preferredAnimationUrl.isNullOrBlank() && validateMotionartworkMatch(it, s, a, album) }
-                                        ?: ViviMusicMotionartworkProvider.getBySongArtist(
-                                            song = s,
-                                            artist = a,
-                                            album = album
-                                        )?.takeIf { !it.preferredAnimationUrl.isNullOrBlank() && validateMotionartworkMatch(it, s, a, album) }
-                                }
+                                autoMotionartworkResolver.get(AutoMotionartworkQuery(songTitle, artistName, albumName.orEmpty(), storefront))
                             }
                             MotionartworkSource.APPLE_MUSIC -> {
                                 searchTasks.firstNotNullOfOrNull { (s, a) ->
@@ -857,7 +839,7 @@ private fun ThumbnailItem(
                     // For single-source modes this block acts as the safety net.
                     val requestedAlbum = item.mediaMetadata.albumTitle?.toString() ?: ""
                     val validated = fetched?.let { artwork ->
-                        val passes = motionartworkSource == MotionartworkSource.BETTER_LYRICS ||
+                        val passes = motionartworkSource in setOf(MotionartworkSource.BETTER_LYRICS, MotionartworkSource.AUTO) ||
                             validateMotionartworkMatch(artwork, requestedTitle, requestedArtist, requestedAlbum)
                         println("CanvasValidation: artistMatches=${artwork.artist.orEmpty().trim().equals(requestedArtist.trim(), ignoreCase = true)}, songMatches=${artwork.name.orEmpty().trim().equals(requestedTitle.trim(), ignoreCase = true)}, albumMatches=${artwork.albumName.orEmpty().trim().equals(requestedAlbum.trim(), ignoreCase = true)}")
                         println("  Requested: Title='$requestedTitle', Album='$requestedAlbum', Artists='$requestedArtist'")
@@ -872,7 +854,7 @@ private fun ThumbnailItem(
                     }
                     
                     canvasArtwork = validated
-                    if (validated != null && motionartworkSource != MotionartworkSource.BETTER_LYRICS) {
+                    if (validated != null && motionartworkSource !in setOf(MotionartworkSource.BETTER_LYRICS, MotionartworkSource.AUTO)) {
                         MotionartworkPlaybackCache.put("${item.mediaId}:${motionartworkSource.name}", validated)
                     }
 

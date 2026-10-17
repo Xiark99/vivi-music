@@ -296,6 +296,9 @@ fun BottomSheetPlayer(
         UseNewPlayerDesignKey,
         defaultValue = false
     )
+    val (showAppleMusicVolumeSlider) = rememberPreference(
+        com.music.vivi.constants.ShowAppleMusicVolumeSliderKey, defaultValue = false
+    )
     val (showAudioQualityBadge) = rememberPreference(
         ShowAudioQualityBadgeKey,
         defaultValue = false
@@ -622,7 +625,7 @@ fun BottomSheetPlayer(
         
         val cacheKey = "${item.id}:${motionartworkSource.name}"
         // Use cached artwork if available
-        MotionartworkPlaybackCache.get(cacheKey)?.takeIf { motionartworkSource != MotionartworkSource.BETTER_LYRICS }?.let { cached ->
+        MotionartworkPlaybackCache.get(cacheKey)?.takeIf { motionartworkSource !in setOf(MotionartworkSource.BETTER_LYRICS, MotionartworkSource.AUTO) }?.let { cached ->
             canvasArtwork = cached
             spotifyCanvasUrl = null // Prioritize Motionartwork, disable Spotify Canvas
             return@LaunchedEffect
@@ -650,12 +653,7 @@ fun BottomSheetPlayer(
                     BetterLyricsMotionartworkProvider.getBySongArtist(s, a, storefront)
                 }
                 MotionartworkSource.AUTO -> {
-                    AppleMusicMotionartworkProvider.getBySongArtist(s, a, requestedAlbum, storefront)
-                        ?.takeIf { !it.preferredAnimationUrl.isNullOrBlank() && validateMotionartworkMatch(it, s, a, requestedAlbum) }
-                        ?: TidalMotionartworkProvider.getBySongArtist(s, a, requestedAlbum)
-                        ?.takeIf { !it.preferredAnimationUrl.isNullOrBlank() && validateMotionartworkMatch(it, s, a, requestedAlbum) }
-                        ?: ViviMusicMotionartworkProvider.getBySongArtist(s, a, requestedAlbum)
-                        ?.takeIf { !it.preferredAnimationUrl.isNullOrBlank() && validateMotionartworkMatch(it, s, a, requestedAlbum) }
+                    autoMotionartworkResolver.get(AutoMotionartworkQuery(s, a, requestedAlbum, storefront))
                 }
                 MotionartworkSource.APPLE_MUSIC -> {
                     AppleMusicMotionartworkProvider.getBySongArtist(s, a, requestedAlbum, storefront)
@@ -682,7 +680,7 @@ fun BottomSheetPlayer(
             val validated = fetched?.let { artwork ->
                 // For AUTO mode validation is already done per-provider inside takeIf.
                 // For single-source modes this block acts as the safety net.
-                val passes = motionartworkSource == MotionartworkSource.BETTER_LYRICS ||
+                val passes = motionartworkSource in setOf(MotionartworkSource.BETTER_LYRICS, MotionartworkSource.AUTO) ||
                     validateMotionartworkMatch(artwork, requestedTitle, requestedArtist, requestedAlbum)
 
                 android.util.Log.d("CanvasDebug", "Validation:")
@@ -700,7 +698,7 @@ fun BottomSheetPlayer(
             withContext(Dispatchers.Main) {
                 canvasArtwork = validated
                 if (validated != null) {
-                    if (motionartworkSource != MotionartworkSource.BETTER_LYRICS) {
+                    if (motionartworkSource !in setOf(MotionartworkSource.BETTER_LYRICS, MotionartworkSource.AUTO)) {
                         MotionartworkPlaybackCache.put(cacheKey, validated)
                     }
                     spotifyCanvasUrl = null // Prioritize Motionartwork, disable Spotify Canvas
@@ -2503,6 +2501,19 @@ fun BottomSheetPlayer(
 //                                    onClick = playerConnection::toggleLike,
 //                                )
 //                            }
+                        }
+
+                        if (showAppleMusicVolumeSlider) {
+                            Spacer(Modifier.height(8.dp))
+                            val castVolume by castHandler?.castVolume?.collectAsState()
+                                ?: remember { androidx.compose.runtime.mutableFloatStateOf(1f) }
+                            AppleMusicVolumeSlider(
+                                isCasting = isCasting,
+                                castVolume = castVolume,
+                                onCastVolumeChange = { castHandler?.setVolume(it) },
+                                accentColor = textButtonColor,
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = PlayerHorizontalPadding),
+                            )
                         }
 
                         val displayBluetoothName = remember(bluetoothDeviceName) {

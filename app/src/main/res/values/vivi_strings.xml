@@ -116,7 +116,7 @@
     <string name="vivimusic_canvas_desc">Replaces the static album artwork in the player with a looping animated video when one is available for the current song</string>
     <string name="canvas_source">Motion artwork source</string>
     <string name="canvas_source_auto">Auto</string>
-    <string name="canvas_source_auto_desc">Tries Apple Music first, then falls back to ViviMusic and Tidal. Picks the best match for the current song automatically</string>
+    <string name="canvas_source_auto_desc">Tries Apple Music, Tidal, VIVIMUSIC, then Better Lyrics Canvas. Uses the first matching animated artwork available.</string>
     <string name="canvas_source_apple_music">Apple Music</string>
     <string name="canvas_source_apple_music_desc">Uses Apple Music&#8217;s animated visuals exclusively. Only shows a motion artwork if Apple Music has one for the playing song</string>
     <string name="canvas_source_vivimusic">ViviMusic</string>
@@ -1179,4 +1179,6 @@
     <string name="ai_error_incomplete">Translation was incomplete. The previous translation has been kept.</string>
     <string name="better_lyrics_canvas">Better Lyrics Canvas</string>
     <string name="better_lyrics_canvas_source_desc">Find animated artwork by song and artist via artwork.boidu.dev. Only song, artist and region are sent. ArchiveTune / Rukamori (GPL-3.0).</string>
+    <string name="show_apple_music_volume_slider">Show Volume Slider</string>
+    <string name="show_apple_music_volume_slider_desc">Show the volume slider in the Apple Music style player.</string>
 </resources>

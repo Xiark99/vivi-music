@@ -49,7 +49,7 @@ fun PlayerV2Motionartowek(
 
     LaunchedEffect(mediaMetadata.id, albumTitle, motionartworkSource) {
         val cacheKey = "${mediaMetadata.id}:${motionartworkSource.name}"
-        MotionartworkPlaybackCache.get(cacheKey)?.takeIf { motionartworkSource != MotionartworkSource.BETTER_LYRICS }?.let { cached ->
+        MotionartworkPlaybackCache.get(cacheKey)?.takeIf { motionartworkSource !in setOf(MotionartworkSource.BETTER_LYRICS, MotionartworkSource.AUTO) }?.let { cached ->
             canvasArtwork = cached
             return@LaunchedEffect
         }
@@ -65,12 +65,7 @@ fun PlayerV2Motionartowek(
                     BetterLyricsMotionartworkProvider.getBySongArtist(songTitle, artistName, storefront)
                 }
                 MotionartworkSource.AUTO -> {
-                    AppleMusicMotionartworkProvider.getBySongArtist(songTitle, artistName, albumName, storefront)
-                        ?.takeIf { !it.preferredAnimationUrl.isNullOrBlank() }
-                        ?: TidalMotionartworkProvider.getBySongArtist(songTitle, artistName, albumName)
-                            ?.takeIf { !it.preferredAnimationUrl.isNullOrBlank() }
-                        ?: ViviMusicMotionartworkProvider.getBySongArtist(songTitle, artistName, albumName)
-                            ?.takeIf { !it.preferredAnimationUrl.isNullOrBlank() }
+                    autoMotionartworkResolver.get(AutoMotionartworkQuery(songTitle, artistName, albumName, storefront))
                 }
                 MotionartworkSource.APPLE_MUSIC -> {
                     AppleMusicMotionartworkProvider.getBySongArtist(songTitle, artistName, albumName, storefront)
@@ -88,7 +83,7 @@ fun PlayerV2Motionartowek(
         }
 
         canvasArtwork = fetched
-        if (fetched != null && motionartworkSource != MotionartworkSource.BETTER_LYRICS) {
+        if (fetched != null && motionartworkSource !in setOf(MotionartworkSource.BETTER_LYRICS, MotionartworkSource.AUTO)) {
             MotionartworkPlaybackCache.put(cacheKey, fetched)
         }
 
