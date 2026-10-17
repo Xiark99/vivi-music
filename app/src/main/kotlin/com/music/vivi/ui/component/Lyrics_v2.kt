@@ -182,11 +182,8 @@ fun LyricsV2(
         defaultValue = com.music.vivi.constants.PlayerBackgroundStyle.GRADIENT
     )
 
-    val processedLyricsBackground = com.music.vivi.ui.theme.LocalProcessedLyricsBackground.current
-        ?: (playerBackground != com.music.vivi.constants.PlayerBackgroundStyle.DEFAULT)
-    val adaptivePrimary = com.music.vivi.ui.theme.rememberArtworkLyricsColor(
-        mediaMetadata?.thumbnailUrl, processedLyricsBackground
-    )
+    val adaptivePrimary =
+        if (playerBackground == com.music.vivi.constants.PlayerBackgroundStyle.DEFAULT) MaterialTheme.colorScheme.onSurface else Color.White
     val lyrics = remember(currentLyrics) { currentLyrics?.lyrics?.trim() }
     val context = LocalContext.current
     val database = LocalDatabase.current
@@ -231,8 +228,7 @@ fun LyricsV2(
     }
 
     Box(
-        modifier = modifier.fillMaxSize()
-            .background(if (processedLyricsBackground) Color.Black.copy(alpha = 0.68f) else Color.Transparent),
+        modifier = modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
         when {

@@ -111,6 +111,7 @@ import com.music.vivi.constants.MotionartworkSource
 import com.music.vivi.constants.MotionartworkSourceKey
 import com.music.vivi.constants.CanvasThumbnailAnimationKey
 import com.music.vivi.Motionartwork.tidal.TidalMotionartworkProvider
+import com.music.vivi.Motionartwork.betterlyrics.BetterLyricsMotionartworkProvider
 import com.music.vivi.Motionartwork.Motionartwork
 import com.music.vivi.Motionartwork.normalizeForComparison
 import com.music.vivi.extensions.metadata
@@ -227,7 +228,7 @@ private fun getMediaItems(
 private fun getTextColor(playerBackground: PlayerBackgroundStyle): Color {
     return when (playerBackground) {
         PlayerBackgroundStyle.DEFAULT -> MaterialTheme.colorScheme.onBackground
-        PlayerBackgroundStyle.BLUR, PlayerBackgroundStyle.GRADIENT, PlayerBackgroundStyle.GLOW_ANIMATED, PlayerBackgroundStyle.APPLE_MUSIC, PlayerBackgroundStyle.LIVE_MESH, PlayerBackgroundStyle.BETTER_LYRICS_CANVAS -> Color.White
+        PlayerBackgroundStyle.BLUR, PlayerBackgroundStyle.GRADIENT, PlayerBackgroundStyle.GLOW_ANIMATED, PlayerBackgroundStyle.APPLE_MUSIC, PlayerBackgroundStyle.LIVE_MESH -> Color.White
     }
 }
 
@@ -760,8 +761,7 @@ private fun ThumbnailItem(
                 if (canvasThumbnailAnimation && item.mediaId == currentMediaId && !rotatingThumbnail && playerBackground != PlayerBackgroundStyle.APPLE_MUSIC && (!canvasLoadOnlyWifi || isWifiConnected(context))) {
                 val (motionartworkSource) = rememberEnumPreference(MotionartworkSourceKey, defaultValue = MotionartworkSource.AUTO)
                 val albumTitle = item.mediaMetadata.albumTitle?.toString()
-                var canvasArtwork by remember(item.mediaId, albumTitle) { mutableStateOf<Motionartwork?>(null) }
-                var canvasFetchInFlight by remember(item.mediaId, albumTitle) { mutableStateOf(false) }
+                var canvasArtwork by remember(item.mediaId, albumTitle, motionartworkSource) { mutableStateOf<Motionartwork?>(null) }
                 val storefront = remember {
                     val country = Locale.getDefault().country
                     if (country.length == 2) country.lowercase(Locale.ROOT) else "us"
@@ -769,13 +769,11 @@ private fun ThumbnailItem(
 
                 LaunchedEffect(item.mediaId, albumTitle, motionartworkSource) {
                     val cacheKey = "${item.mediaId}:${motionartworkSource.name}"
-                    MotionartworkPlaybackCache.get(cacheKey)?.let { cached ->
+                    MotionartworkPlaybackCache.get(cacheKey)?.takeIf { motionartworkSource != MotionartworkSource.BETTER_LYRICS }?.let { cached ->
                         canvasArtwork = cached
                         return@LaunchedEffect
                     }
 
-                    if (canvasFetchInFlight) return@LaunchedEffect
-                    canvasFetchInFlight = true
 
                     val fetched = withContext(Dispatchers.IO) {
                         val metadata = item.metadata
@@ -795,6 +793,9 @@ private fun ThumbnailItem(
                         ).filter { (s, a) -> s.isNotBlank() && a.isNotBlank() }
 
                         when (motionartworkSource) {
+                            MotionartworkSource.BETTER_LYRICS -> {
+                                BetterLyricsMotionartworkProvider.getBySongArtist(songTitle, artistName, storefront)
+                            }
                             MotionartworkSource.AUTO -> {
                                 searchTasks.firstNotNullOfOrNull { (s, a) ->
                                     val album = albumName ?: ""
@@ -856,7 +857,8 @@ private fun ThumbnailItem(
                     // For single-source modes this block acts as the safety net.
                     val requestedAlbum = item.mediaMetadata.albumTitle?.toString() ?: ""
                     val validated = fetched?.let { artwork ->
-                        val passes = validateMotionartworkMatch(artwork, requestedTitle, requestedArtist, requestedAlbum)
+                        val passes = motionartworkSource == MotionartworkSource.BETTER_LYRICS ||
+                            validateMotionartworkMatch(artwork, requestedTitle, requestedArtist, requestedAlbum)
                         println("CanvasValidation: artistMatches=${artwork.artist.orEmpty().trim().equals(requestedArtist.trim(), ignoreCase = true)}, songMatches=${artwork.name.orEmpty().trim().equals(requestedTitle.trim(), ignoreCase = true)}, albumMatches=${artwork.albumName.orEmpty().trim().equals(requestedAlbum.trim(), ignoreCase = true)}")
                         println("  Requested: Title='$requestedTitle', Album='$requestedAlbum', Artists='$requestedArtist'")
                         println("  Returned: Title='${artwork.name}', Album='${artwork.albumName}', Artists='${artwork.artist}'")
@@ -870,10 +872,10 @@ private fun ThumbnailItem(
                     }
                     
                     canvasArtwork = validated
-                    if (validated != null) {
+                    if (validated != null && motionartworkSource != MotionartworkSource.BETTER_LYRICS) {
                         MotionartworkPlaybackCache.put("${item.mediaId}:${motionartworkSource.name}", validated)
                     }
-                    canvasFetchInFlight = false
+
                 }
 
                 canvasArtwork?.let { artwork ->

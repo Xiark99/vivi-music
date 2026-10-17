@@ -1178,4 +1178,5 @@
     <string name="ai_retranslate">再翻訳</string>
     <string name="ai_error_incomplete">Translation was incomplete. The previous translation has been kept.</string>
     <string name="better_lyrics_canvas">Better Lyrics Canvas</string>
+    <string name="better_lyrics_canvas_source_desc">Find animated artwork by song and artist via artwork.boidu.dev. Only song, artist and region are sent. ArchiveTune / Rukamori (GPL-3.0).</string>
 </resources>

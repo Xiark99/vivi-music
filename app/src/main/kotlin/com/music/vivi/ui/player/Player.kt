@@ -237,6 +237,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.music.vivi.Motionartwork.apple.AppleMusicMotionartworkProvider
+import com.music.vivi.Motionartwork.betterlyrics.BetterLyricsMotionartworkProvider
 import com.music.vivi.Motionartwork.Motionartwork
 import com.music.vivi.Motionartwork.tidal.TidalMotionartworkProvider
 import com.music.vivi.Motionartwork.vivimusic.ViviMusicMotionartworkProvider
@@ -324,7 +325,7 @@ fun BottomSheetPlayer(
 
     val shouldUseDarkButtonColors = remember(playerBackground, useDarkTheme) {
         when (playerBackground) {
-            PlayerBackgroundStyle.BLUR, PlayerBackgroundStyle.GRADIENT, PlayerBackgroundStyle.GLOW_ANIMATED, PlayerBackgroundStyle.APPLE_MUSIC, PlayerBackgroundStyle.LIVE_MESH, PlayerBackgroundStyle.BETTER_LYRICS_CANVAS -> true
+            PlayerBackgroundStyle.BLUR, PlayerBackgroundStyle.GRADIENT, PlayerBackgroundStyle.GLOW_ANIMATED, PlayerBackgroundStyle.APPLE_MUSIC, PlayerBackgroundStyle.LIVE_MESH -> true
             PlayerBackgroundStyle.DEFAULT -> useDarkTheme
         }
     }
@@ -341,7 +342,7 @@ fun BottomSheetPlayer(
             val insetsController = WindowCompat.getInsetsController(window, window.decorView)
             
             when (playerBackground) {
-                PlayerBackgroundStyle.BLUR, PlayerBackgroundStyle.GRADIENT, PlayerBackgroundStyle.GLOW_ANIMATED, PlayerBackgroundStyle.APPLE_MUSIC, PlayerBackgroundStyle.LIVE_MESH, PlayerBackgroundStyle.BETTER_LYRICS_CANVAS -> {
+                PlayerBackgroundStyle.BLUR, PlayerBackgroundStyle.GRADIENT, PlayerBackgroundStyle.GLOW_ANIMATED, PlayerBackgroundStyle.APPLE_MUSIC, PlayerBackgroundStyle.LIVE_MESH -> {
                     insetsController.isAppearanceLightStatusBars = false
                 }
                 PlayerBackgroundStyle.DEFAULT -> {
@@ -547,7 +548,7 @@ fun BottomSheetPlayer(
             PlayerBackgroundStyle.GRADIENT -> Color.White
             PlayerBackgroundStyle.GLOW_ANIMATED -> Color.White
             PlayerBackgroundStyle.APPLE_MUSIC -> Color.White
-            PlayerBackgroundStyle.LIVE_MESH, PlayerBackgroundStyle.BETTER_LYRICS_CANVAS -> Color.White
+            PlayerBackgroundStyle.LIVE_MESH -> Color.White
         },
         label = "TextBackgroundColor"
     )
@@ -559,19 +560,18 @@ fun BottomSheetPlayer(
             PlayerBackgroundStyle.GRADIENT -> Color.Black
             PlayerBackgroundStyle.GLOW_ANIMATED -> Color.Black
             PlayerBackgroundStyle.APPLE_MUSIC -> Color.Black
-            PlayerBackgroundStyle.LIVE_MESH, PlayerBackgroundStyle.BETTER_LYRICS_CANVAS -> Color.Black
+            PlayerBackgroundStyle.LIVE_MESH -> Color.Black
         },
         label = "icBackgroundColor"
     )
 
     val albumTitle = mediaMetadata?.album?.title
-    var canvasArtwork by remember(mediaMetadata?.id, albumTitle) { mutableStateOf<Motionartwork?>(null) }
-    var canvasFetchInFlight by remember(mediaMetadata?.id, albumTitle) { mutableStateOf(false) }
+    var canvasArtwork by remember(mediaMetadata?.id, albumTitle, motionartworkSource, playerBackground, enableCanvas) { mutableStateOf<Motionartwork?>(null) }
     var spotifyCanvasUrl by remember(mediaMetadata?.id, albumTitle) { mutableStateOf<String?>(null) }
     
     val isNetworkConnected by (LocalPlayerConnection.current?.service?.connectivityObserver?.networkStatus ?: kotlinx.coroutines.flow.MutableStateFlow(false)).collectAsState(initial = false)
 
-    LaunchedEffect(mediaMetadata?.id, albumTitle, playerBackground, motionartworkSource, spotifyCanvasEnabled, Spotify.accessToken, isNetworkConnected) {
+    LaunchedEffect(mediaMetadata?.id, albumTitle, playerBackground, motionartworkSource, enableCanvas, canvasLoadOnlyWifi, spotifyCanvasEnabled, Spotify.accessToken, isNetworkConnected) {
         val item = mediaMetadata ?: return@LaunchedEffect
         
         if (!spotifyCanvasEnabled) {
@@ -622,14 +622,12 @@ fun BottomSheetPlayer(
         
         val cacheKey = "${item.id}:${motionartworkSource.name}"
         // Use cached artwork if available
-        MotionartworkPlaybackCache.get(cacheKey)?.let { cached ->
+        MotionartworkPlaybackCache.get(cacheKey)?.takeIf { motionartworkSource != MotionartworkSource.BETTER_LYRICS }?.let { cached ->
             canvasArtwork = cached
             spotifyCanvasUrl = null // Prioritize Motionartwork, disable Spotify Canvas
             return@LaunchedEffect
         }
 
-        if (canvasFetchInFlight) return@LaunchedEffect
-        canvasFetchInFlight = true
         
         withContext(Dispatchers.IO) {
             val storefront = Locale.getDefault().country.lowercase(Locale.ROOT).takeIf { it.length == 2 } ?: "us"
@@ -648,6 +646,9 @@ fun BottomSheetPlayer(
             android.util.Log.d("CanvasDebug", "Album      : '$requestedAlbum' (blank=${requestedAlbum.isBlank()})")
 
             val fetched = when (motionartworkSource) {
+                MotionartworkSource.BETTER_LYRICS -> {
+                    BetterLyricsMotionartworkProvider.getBySongArtist(s, a, storefront)
+                }
                 MotionartworkSource.AUTO -> {
                     AppleMusicMotionartworkProvider.getBySongArtist(s, a, requestedAlbum, storefront)
                         ?.takeIf { !it.preferredAnimationUrl.isNullOrBlank() && validateMotionartworkMatch(it, s, a, requestedAlbum) }
@@ -681,7 +682,8 @@ fun BottomSheetPlayer(
             val validated = fetched?.let { artwork ->
                 // For AUTO mode validation is already done per-provider inside takeIf.
                 // For single-source modes this block acts as the safety net.
-                val passes = validateMotionartworkMatch(artwork, requestedTitle, requestedArtist, requestedAlbum)
+                val passes = motionartworkSource == MotionartworkSource.BETTER_LYRICS ||
+                    validateMotionartworkMatch(artwork, requestedTitle, requestedArtist, requestedAlbum)
 
                 android.util.Log.d("CanvasDebug", "Validation:")
                 android.util.Log.d("CanvasDebug", "  artistMatches  : ${artwork.artist.orEmpty().trim().equals(requestedArtist.trim(), ignoreCase = true)}  ('${artwork.artist?.trim()}' vs '${requestedArtist.trim()}')")
@@ -698,10 +700,12 @@ fun BottomSheetPlayer(
             withContext(Dispatchers.Main) {
                 canvasArtwork = validated
                 if (validated != null) {
-                    MotionartworkPlaybackCache.put(cacheKey, validated)
+                    if (motionartworkSource != MotionartworkSource.BETTER_LYRICS) {
+                        MotionartworkPlaybackCache.put(cacheKey, validated)
+                    }
                     spotifyCanvasUrl = null // Prioritize Motionartwork, disable Spotify Canvas
                 }
-                canvasFetchInFlight = false
+
             }
         }
     }
@@ -711,8 +715,7 @@ fun BottomSheetPlayer(
         playerBackground == PlayerBackgroundStyle.GRADIENT ||
         playerBackground == PlayerBackgroundStyle.GLOW_ANIMATED ||
         playerBackground == PlayerBackgroundStyle.APPLE_MUSIC ||
-        playerBackground == PlayerBackgroundStyle.LIVE_MESH ||
-        playerBackground == PlayerBackgroundStyle.BETTER_LYRICS_CANVAS -> {
+        playerBackground == PlayerBackgroundStyle.LIVE_MESH -> {
             when (playerButtonsStyle) {
                 PlayerButtonsStyle.DEFAULT -> Pair(Color.White, Color.Black)
                 PlayerButtonsStyle.PRIMARY -> Pair(
@@ -884,7 +887,7 @@ fun BottomSheetPlayer(
     val bottomSheetBackgroundColor = when (playerBackground) {
         PlayerBackgroundStyle.BLUR, PlayerBackgroundStyle.GRADIENT, PlayerBackgroundStyle.GLOW_ANIMATED, PlayerBackgroundStyle.APPLE_MUSIC ->
             MaterialTheme.colorScheme.surfaceContainer
-        PlayerBackgroundStyle.LIVE_MESH, PlayerBackgroundStyle.BETTER_LYRICS_CANVAS ->
+        PlayerBackgroundStyle.LIVE_MESH ->
             Color.Black
         else ->
             if (useBlackBackground) Color.Black
@@ -892,10 +895,6 @@ fun BottomSheetPlayer(
     }
 
     val backgroundAlpha = state.progress.coerceIn(0f, 1f)
-    androidx.compose.runtime.CompositionLocalProvider(
-        com.music.vivi.ui.theme.LocalProcessedLyricsBackground provides
-            (playerBackground != PlayerBackgroundStyle.DEFAULT || (spotifyCanvasUrl != null && !usePlayerV2))
-    ) {
     BottomSheet(
         state = state,
         modifier = modifier,
@@ -905,7 +904,7 @@ fun BottomSheetPlayer(
                     .fillMaxSize()
                     .background(bottomSheetBackgroundColor)
             ) {
-                if (spotifyCanvasUrl != null && !usePlayerV2 && playerBackground != PlayerBackgroundStyle.BETTER_LYRICS_CANVAS) {
+                if (spotifyCanvasUrl != null && !usePlayerV2) {
                     val overlayAlpha by animateFloatAsState(
                         targetValue = if (showInlineLyrics) 0.85f else 0.4f,
                         label = "canvasDimmer"
@@ -1252,14 +1251,6 @@ fun BottomSheetPlayer(
                                 }
                             }
                         }
-                    }
-                    PlayerBackgroundStyle.BETTER_LYRICS_CANVAS -> {
-                        BetterLyricsCanvas(
-                            artworkUrl = mediaMetadata?.thumbnailUrl,
-                            isPlaying = effectiveIsPlaying,
-                            visible = backgroundAlpha > 0.01f,
-                            modifier = Modifier.fillMaxSize().alpha(backgroundAlpha),
-                        )
                     }
                     PlayerBackgroundStyle.LIVE_MESH -> {
                         val infiniteTransition = rememberInfiniteTransition(label = "liveMeshRotation")
@@ -2720,7 +2711,6 @@ fun BottomSheetPlayer(
             },
             )
         }
-    }
     }
     }
 }

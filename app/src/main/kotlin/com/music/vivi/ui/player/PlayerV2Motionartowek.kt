@@ -7,6 +7,7 @@ package com.music.vivi.ui.player
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import com.music.vivi.Motionartwork.betterlyrics.BetterLyricsMotionartworkProvider
 import com.music.vivi.Motionartwork.Motionartwork
 import com.music.vivi.Motionartwork.tidal.TidalMotionartworkProvider
 import com.music.vivi.Motionartwork.apple.AppleMusicMotionartworkProvider
@@ -39,8 +40,7 @@ fun PlayerV2Motionartowek(
 
     val (motionartworkSource) = rememberEnumPreference(MotionartworkSourceKey, defaultValue = MotionartworkSource.AUTO)
     val albumTitle = mediaMetadata.album?.title
-    var canvasArtwork by remember(mediaMetadata.id, albumTitle) { mutableStateOf<Motionartwork?>(null) }
-    var canvasFetchInFlight by remember(mediaMetadata.id, albumTitle) { mutableStateOf(false) }
+    var canvasArtwork by remember(mediaMetadata.id, albumTitle, motionartworkSource) { mutableStateOf<Motionartwork?>(null) }
     
     val storefront = remember {
         val country = Locale.getDefault().country
@@ -49,13 +49,11 @@ fun PlayerV2Motionartowek(
 
     LaunchedEffect(mediaMetadata.id, albumTitle, motionartworkSource) {
         val cacheKey = "${mediaMetadata.id}:${motionartworkSource.name}"
-        MotionartworkPlaybackCache.get(cacheKey)?.let { cached ->
+        MotionartworkPlaybackCache.get(cacheKey)?.takeIf { motionartworkSource != MotionartworkSource.BETTER_LYRICS }?.let { cached ->
             canvasArtwork = cached
             return@LaunchedEffect
         }
 
-        if (canvasFetchInFlight) return@LaunchedEffect
-        canvasFetchInFlight = true
 
         val fetched = withContext(Dispatchers.IO) {
             val songTitle = mediaMetadata.title ?: ""
@@ -63,6 +61,9 @@ fun PlayerV2Motionartowek(
             val albumName = albumTitle ?: ""
 
             when (motionartworkSource) {
+                MotionartworkSource.BETTER_LYRICS -> {
+                    BetterLyricsMotionartworkProvider.getBySongArtist(songTitle, artistName, storefront)
+                }
                 MotionartworkSource.AUTO -> {
                     AppleMusicMotionartworkProvider.getBySongArtist(songTitle, artistName, albumName, storefront)
                         ?.takeIf { !it.preferredAnimationUrl.isNullOrBlank() }
@@ -83,15 +84,14 @@ fun PlayerV2Motionartowek(
                     TidalMotionartworkProvider.getBySongArtist(songTitle, artistName, albumName)
                         ?.takeIf { !it.preferredAnimationUrl.isNullOrBlank() }
                 }
-                else -> null
             }
         }
 
-        if (fetched != null) {
-            canvasArtwork = fetched
+        canvasArtwork = fetched
+        if (fetched != null && motionartworkSource != MotionartworkSource.BETTER_LYRICS) {
             MotionartworkPlaybackCache.put(cacheKey, fetched)
         }
-        canvasFetchInFlight = false
+
     }
 
     canvasArtwork?.let { artwork ->

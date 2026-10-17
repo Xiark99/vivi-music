@@ -1,0 +1,142 @@
+Nami 3.0.0 / versionCode 83 追加修正レポート
+
+作業場所: C:\dev\nami-3.0
+ブランチ: feature/nami-3.0
+安全なチェックポイント: baa87b0c
+  前回の動作確認済みversion 82の22ファイルをローカルコミット。
+  既存のbaseline profile .dm生成物2ファイルは未ステージで保持。
+  署名鍵、パスワード、local.properties、APKはコミットしていない。
+  今回の修正はチェックポイント後の未コミット差分。
+
+1. 歌詞色
+Lyrics.kt / Lyrics_v2.ktの色分岐をversion 81 (9a862634) と完全一致する
+コードに戻した。テーマに従う場合は従来のMaterialTheme色、それ以外は
+白を使用する。アクティブ/非アクティブ/翻訳行の既存の色・透明度指定を
+変更していない。共通のArtworkLyricsColorと黒い背景オーバーレイ、
+CompositionLocalを削除。歌詞同期、スクロール、アニメーションは変更なし。
+前回追加の再翻訳に関する差分のみ残していることを確認した。
+
+2. Better Lyrics Canvas
+設定 > プレイヤーと音声 > Motion Artworkの取得元に独立した選択肢を追加。
+既存canvasSourceキーにBETTER_LYRICSという文字列をDataStoreで保存する。
+設定画面と親設定の要約、標準サムネイル、V2縦/横プレイヤー、
+既存Apple Music背景の取得経路を接続した。AUTOの取得順は変更なし。
+
+参照: ArchiveTune (Rukamori), GPL-3.0
+参照コミット: 57732a1859cc42e7f4edba5de64fb68dcba4dd48
+https://github.com/rukamori/ArchiveTune
+取得API: https://artwork.boidu.dev/
+GETパラメーター: s=曲名、a=アーティスト、storefront=2文字の地域。
+YouTube ID、ログイントークン、Cookie、歌詞、履歴は送信しない。
+追加依存関係なし。既存KtorとMedia3の無音ループ再生を利用する。
+GPLの原著作権表示をソースに保持し、変更日と変更内容を追記した。
+詳細クレジット: NOTICE_BETTER_LYRICS.txt、ライセンス本文: LICENSE。
+
+曲名はUnicode対応の正規化後に一致を要求する。公式音声/動画などの
+表示上の修飾のみ除外し、Live/Remix/客演違いなどのバージョン違いは一致させない。
+アーティストはArchiveTuneより保守的に全体を比較し、共同アーティストが
+異なる候補を採用しない。氏名が欠落している応答も採用しない。
+サービスにalbumNameがないため、新取得元だけは曲名/アーティストで検証し、
+従来の取得元のアルバム名判定を維持した。
+
+HTTPSのアニメーションのみ採用し、YouTube/Googlevideo URLは拒否。
+正方形HLS優先、MP4をフォールバックとし、縦長URLも既存モデルに変換。
+縦長のアニメーションだけが存在する場合も既存表示領域で再生可能。
+取得成功/失敗/不一致を最大128件、60秒間メモリキャッシュする。
+同時取得はMutexでまとめ、期限のない既存再生キャッシュを新取得元では
+使用しない。キャッシュはアプリ終了後に永続化しない。設定選択は永続化する。
+通信例外はnullにし、Coroutineのキャンセルは再スローする。
+曲/取得元の変更で表示状態をリセットし、古い取得処理はLaunchedEffectで
+キャンセルする。失敗時は既存の静止アルバムアートをそのまま表示する。
+MotionartworkPlayerのURL切替時にViewを新しいExoPlayerへ確実に接続し、
+再生エラー時にはアニメーションを隠すよう修正した。
+
+前回の専用AGSL BetterLyricsCanvas.ktと関連テストを削除し、
+PlayerBackgroundStyleの誤った選択肢と各画面の分岐を除去した。
+既存のLiveMesh、Canvas、Apple Music背景、Spotify Canvasは維持している。
+前回のAGSL背景を選択していた保存値は既存の不明enum値フォールバックで
+通常の背景設定に戻るため、Motion Artwork側で新たに選択する必要がある。
+YouTube楽曲動画プレイヤーや動画ストリーム取得経路は復活させていない。
+
+3. 互換性・保護対象
+applicationIdと署名設定は変更なし。インストールID com.vivi.vivimusic.custom。
+versionName=3.0.0、versionCode=83。
+MusicService、YTPlayerUtils、InnerTubeXPlayer、LibraryMixScreen、
+AutoBackupHelper、MusicDatabase、TranslationPrompt、LyricsTranslationHelper、
+LyricsMenu、HomeScreen、HideOnScrollFABの11ファイルはbaa87b0cと同一。
+音声再生・公式履歴同期・追加プロンプト・Library Mix・Task Clear・
+コメント機能・ホーム音声認識ボタン削除を担う処理は維持した。
+Queue.ktはAGSL用の色分岐のみ取り消し、Apple風のコメントボタン削除を維持。
+DBスキーマ、バックアップ形式、アプリ名、アイコンは変更していない。
+GitHubへのpush/Release公開、他worktreeの変更は実施していない。
+
+4. 検証
+最終検証コマンド:
+.\gradlew.bat :app:compileUniversalFossCustomReleaseKotlin :app:testUniversalFossDebugUnitTest :Motionartwork:test :app:lintUniversalFossCustomRelease :app:processUniversalFossCustomReleaseManifest --no-configuration-cache --console=plain
+ログ: nami-v83-final.log (生成ログのためコミット対象外)
+コンパイルと単体テスト: 成功 (アプリ8件 + Motionartwork15件 = 23件)。
+新規13件: 曲/アーティスト/Unicode/バージョン一致、応答デコード、成功/失敗の
+キャッシュと期限、誤一致/空アニメーション拒否、MP4/縦長フォールバック、
+HTTP/YouTube URL拒否、通信失敗/キャンセル、同時取得共有、曲/地域の分離、
+キャッシュ上限を検証した。
+最終検証: BUILD SUCCESSFUL in 4m 58s。
+最終lint: 既存と同じError 84 / Warning 775 / Hint 5。
+エラーID・メッセージ・対象ファイルの組は前回と同じで、新規エラーなし。
+今回変更した行への指摘なし。abortOnError=falseの既存設定によりタスクは
+成功終了するが、lintがクリーンになったという意味ではない。
+内訳はNewApi、PropertyEscape (既存local.properties)、Composeの既存指摘、
+翻訳リソースの書式・複数形など。指定外の修正は実施していない。
+生成Manifestもcom.vivi.vivimusic.custom / 3.0.0 / 83であることを確認した。
+
+公開API確認:
+Anti-Hero / Taylor Swift (us/jp) と Houdini / Dua Lipa (us)で
+アニメーションURLを取得。
+Anti-HeroのHLS URLはHTTP 200を確認した (2026-10-17)。
+Blinding Lights / The Weekndではアニメーションなしの応答を確認。
+Midnights / Taylor Swiftでは別曲Midnight Rainが返ったため、
+このような候補は曲名一致判定で拒否する設計。
+実際の端末上でのデコード/描画を確認したという意味ではない。
+
+5. 実機確認事項・制約
+・Motion ArtworkにBetter Lyrics Canvasが表示され、選択後の要約が更新される。
+・アプリを終了・再起動しても選択を維持する。
+・Anti-Hero等で標準/V2縦/V2横/Apple Music背景の表示を確認する。
+・曲を素早く変更し、古い曲のCanvasが残らないことを確認する。
+・Canvasなし曲、不一致の曲、オフライン、取得/デコード失敗時は静止画に戻る。
+・一時停止/再開、Wi-Fi限定設定、既存の他の取得元への切替を確認する。
+・テーマに従う/その他の背景でアクティブ/非アクティブ/翻訳歌詞の色を確認する。
+・通常再生、シーク、公式履歴同期、再翻訳、追加プロンプト、Task Clearを確認する。
+・上書きインストールで設定・ライブラリ・ダウンロード・バックアップを確認する。
+署名パスワードは未設定のため署名付きAPKは未作成。
+既存の安全なPowerShellビルド手順はNAMI3_BUILD.txt参照。
+外部サービスの提供範囲・可用性・地域制限に依存し、全楽曲にCanvasは存在しない。
+厳格一致のため、表記や共同アーティストの情報が違う場合も静止画に戻る。
+端末上の表示・保存復元・音声再生・履歴同期の実動作は実機検証待ち。
+
+6. 変更ファイル (既存の生成物2ファイルを除く)
+Motionartwork/src/main/kotlin/com/music/vivi/Motionartwork/betterlyrics/BetterLyricsMotionartworkProvider.kt
+Motionartwork/src/main/kotlin/com/music/vivi/Motionartwork/betterlyrics/CanvasArtworkIdentity.kt
+Motionartwork/src/test/kotlin/com/music/vivi/Motionartwork/betterlyrics/BetterLyricsMotionartworkProviderTest.kt
+NAMI3_BUILD.txt
+NAMI3_V83_REPORT.txt
+NOTICE_BETTER_LYRICS.txt
+app/build.gradle.kts
+app/src/main/kotlin/com/music/vivi/constants/PreferenceKeys.kt
+app/src/main/kotlin/com/music/vivi/ui/component/Lyrics.kt
+app/src/main/kotlin/com/music/vivi/ui/component/Lyrics_v2.kt
+app/src/main/kotlin/com/music/vivi/ui/player/BetterLyricsCanvas.kt
+app/src/main/kotlin/com/music/vivi/ui/player/MotionartworkPlayer.kt
+app/src/main/kotlin/com/music/vivi/ui/player/Player.kt
+app/src/main/kotlin/com/music/vivi/ui/player/PlayerV2Landscape.kt
+app/src/main/kotlin/com/music/vivi/ui/player/PlayerV2Motionartowek.kt
+app/src/main/kotlin/com/music/vivi/ui/player/Player_v2.kt
+app/src/main/kotlin/com/music/vivi/ui/player/Queue.kt
+app/src/main/kotlin/com/music/vivi/ui/player/Thumbnail.kt
+app/src/main/kotlin/com/music/vivi/ui/screens/settings/AppearanceSettings.kt
+app/src/main/kotlin/com/music/vivi/ui/screens/settings/MotionartworkSelection.kt
+app/src/main/kotlin/com/music/vivi/ui/screens/settings/PlayerSettings.kt
+app/src/main/kotlin/com/music/vivi/ui/theme/ArtworkLyricsColor.kt
+app/src/main/kotlin/com/music/vivi/ui/theme/PlayerSliderColors.kt
+app/src/main/res/values/vivi_strings.xml
+app/src/test/kotlin/com/music/vivi/ui/player/BetterLyricsCanvasTest.kt
+app/src/test/kotlin/com/music/vivi/ui/theme/ArtworkLyricsColorTest.kt

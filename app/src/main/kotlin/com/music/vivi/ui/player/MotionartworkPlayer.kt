@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -130,7 +131,7 @@ fun MotionartworkPlayer(
             }
         }
 
-    LaunchedEffect(isPlaying) {
+    LaunchedEffect(isPlaying, exoPlayer) {
         if (exoPlayer.playWhenReady != isPlaying) {
             exoPlayer.playWhenReady = isPlaying
         }
@@ -140,6 +141,7 @@ fun MotionartworkPlayer(
         val listener =
             object : Player.Listener {
                 override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                    isVideoReady = false
                     val next =
                         when (currentUrl) {
                             primary -> fallback
@@ -204,6 +206,7 @@ fun MotionartworkPlayer(
         label = "MotionartworkPlayer"
     )
 
+    key(exoPlayer) {
     AndroidView(
         factory = { viewContext ->
             AspectRatioFrameLayout(viewContext).apply {
@@ -223,4 +226,5 @@ fun MotionartworkPlayer(
         },
         modifier = modifier.alpha(alpha),
     )
+    }
 }

@@ -385,6 +385,7 @@ fun PlayerSettings(
                             stringResource(R.string.disable)
                         } else {
                             when (canvasSource) {
+                                MotionartworkSource.BETTER_LYRICS -> stringResource(R.string.better_lyrics_canvas)
                                 MotionartworkSource.AUTO -> stringResource(R.string.canvas_source_auto)
                                 MotionartworkSource.APPLE_MUSIC -> stringResource(R.string.canvas_source_apple_music)
                                 MotionartworkSource.VIVIMUSIC -> stringResource(R.string.canvas_source_vivimusic)

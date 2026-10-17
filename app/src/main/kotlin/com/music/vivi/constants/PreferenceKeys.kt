@@ -510,7 +510,6 @@ enum class PlayerBackgroundStyle {
     GLOW_ANIMATED,
     APPLE_MUSIC,
     LIVE_MESH,
-    BETTER_LYRICS_CANVAS,
 }
 
 val TopSize = stringPreferencesKey("topSize")
@@ -592,6 +591,7 @@ val DataSaverBackupAlbumCanvasKey   = booleanPreferencesKey("dataSaverBackupAlbu
 
 
 enum class MotionartworkSource {
+    BETTER_LYRICS,
     AUTO,
     APPLE_MUSIC,
     VIVIMUSIC,

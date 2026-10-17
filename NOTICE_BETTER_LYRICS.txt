@@ -1,0 +1,29 @@
+Better Lyrics Canvas integration (Nami, 2026-10-17)
+
+This integration adapts ArchiveTune's Canvas API access, response model and
+song identity normalization. Original copyright notices remain in the sources.
+
+ArchiveTune (2026), Copyright Rukamori — github.com/rukamori
+GPL-3.0. Contributors: see upstream git history.
+https://github.com/rukamori/ArchiveTune
+Inspected upstream revision: 57732a1859cc42e7f4edba5de64fb68dcba4dd48
+Sources under canvas/src/main/kotlin/moe/rukamori/archivetune/canvas/:
+  ArchiveTuneCanvas.kt
+  CanvasSource.kt
+  models/CanvasArtworkModel.kt
+  models/CanvasArtworkIdentity.kt
+License: https://github.com/rukamori/ArchiveTune/blob/57732a1859cc42e7f4edba5de64fb68dcba4dd48/LICENSE
+The GNU GPL version 3 text is included in this repository's LICENSE.
+
+Modified for Nami: Motionartwork model conversion, bounded expiring cache of
+hits and misses, coroutine cancellation, HTTPS URL checks, stricter full-artist
+identity checking, existing Motion Artwork settings and rendering integration.
+No new binary dependency was added. This is part of the GPL-3.0 FOSS build.
+
+Lookup endpoint: https://artwork.boidu.dev/
+Only song title (s), artist name (a), and two-letter region (storefront) are
+sent. No YouTube ID, login token, cookie, lyrics, library or history is sent.
+Artwork URLs returned by the service are played as muted artwork loops.
+The external service and returned artwork are not bundled or owned by Nami.
+The upstream code license does not guarantee availability or grant ownership
+of artwork returned by the external service.

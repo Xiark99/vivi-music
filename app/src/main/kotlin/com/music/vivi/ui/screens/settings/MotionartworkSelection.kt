@@ -134,6 +134,19 @@ fun MotionartworkSelection(
                 Material3SettingsItem(
                     leadingContent = {
                         AnimatedRadioButton(
+                            selected = motionartworkSource == MotionartworkSource.BETTER_LYRICS,
+                            onClick = null,
+                            enabled = canvasThumbnailAnimation
+                        )
+                    },
+                    title = { Text(stringResource(R.string.better_lyrics_canvas)) },
+                    description = { Text(stringResource(R.string.better_lyrics_canvas_source_desc)) },
+                    enabled = canvasThumbnailAnimation,
+                    onClick = { onMotionartworkSourceChange(MotionartworkSource.BETTER_LYRICS) }
+                ),
+                Material3SettingsItem(
+                    leadingContent = {
+                        AnimatedRadioButton(
                             selected = motionartworkSource == MotionartworkSource.AUTO,
                             onClick = null,
                             enabled = canvasThumbnailAnimation
