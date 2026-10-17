@@ -1,0 +1,154 @@
+Nami 3.0.0 / versionCode 86 アイコン適用レポート
+
+作業場所: C:\dev\nami-3.0
+ブランチ: feature/nami-3.0
+作業前チェックポイント: a5220e6e
+v85のソース・報告書と提供原画像をローカルコミットに保存。
+既存のbaseline profile .dm生成物2ファイルは変更せず、コミット対象から除外。
+署名情報、local.properties、APK、ビルド生成物はコミットしていない。
+今回のv86変更はチェックポイント後の未コミット差分。
+
+1. 原画像
+作業フォルダには指定名のNami_icon_blue.pngは存在せず、提供済みの
+「ブルーグラデーションの波形アイコン.png」が説明と一致していた。
+同ファイルをバイト単位で変更せずNami_icon_blue.pngへコピーして入力に使用。
+SHA-256: a309fa355927764c86448ce59aa55a8fd1f87cb9b6bd6216616a00897d8b1450
+新規デザインの生成や他製品のアイコン素材の流用はしていない。
+元画像の黒い外周マットのみを透過化し、青い角丸カードと白い3本線を保持。
+縦横比を保持して縮小・中央配置。原画像自体は変更しない。
+
+2. Androidアイコン
+通常ランチャー: mdpi～xxxhdpiの48/72/96/144/192pxを生成。
+Adaptive: 108dpの前景レイヤー内に幅54dpでカードを中央配置。
+中央66dpの円形安全領域に全体が収まることを全密度で検証。
+背景は濃紺#041840。青グラデーションと白い3本線は原画像由来。
+Round: 既存のic_launcher_round.xml/static_round.xmlを維持し、
+通常Adaptiveと同じ前景・背景・monochromeリソースを参照する。
+Monochrome: 原画像の白い3本線だけを白/透過のアルファマスクとして抽出。
+Android 13以降のテーマアイコンではOSの色付けを使用する。
+静的/通常ランチャーの両エイリアスを同じシンボルへ統一。
+通知用小アイコンも同じ3本線の白/透過画像へ変更。
+vivi_music_small_iconはicon、vivimusicnotificationは密度別ic_stat_nameへの
+drawableエイリアスとして既存リソース名を保持し、重複PNGを削除した。
+Play Store用画像・fastlane画像・assets画像も同じ原画像へ統一。
+
+3. アプリ内の適用箇所
+ホーム左上のツールバーロゴ、設定のアプリ情報ロゴ、Wrapped開始/終了ページ、
+歌詞共有カードの画面内ロゴと書き出し画像を更新。
+角丸の原画像を活かすため、これらのロゴに限り円形切り抜きを除去。
+標準/Apple Music風/横画面プレイヤーのアートワーク代替ロゴ、
+サムネイル非表示時のロゴも同じ画像を使用し、青色を潰す単色tintを解除。
+ウィジェットの既存ランチャー/既定アート参照先も新しい画像へ置換される。
+起動時は既存のinstallSplashScreenとアプリのランチャーアイコン参照を継続。
+別途古いロゴを表示するカスタムスプラッシュ処理は見つからなかった。
+参照されていない旧Viviの汎用vectorリソースは今回変更していない。
+
+4. 互換性と範囲
+versionName 3.0.0、versionCode 86。
+applicationId com.vivi.vivimusic.custom、署名設定、Manifest、ランチャーの
+コンポーネント名とエイリアス、DB/スキーマ、バックアップ設定を維持。
+Welcome/Supportポップアップの廃止状態を維持。
+変更したKotlinコードはロゴの切り抜き・着色・不要になった色引数のみ。
+Better Lyrics/Auto、音声再生サービス、履歴同期、AI翻訳/再翻訳、音量設定、
+Library Mix、Stop Music on Task Clearなどの処理は変更していない。
+YouTube動画プレイヤーの処理や依存関係は追加していない。
+Pillowは開発時のリソース生成・検証だけに利用し、アプリ依存関係は追加しない。
+
+5. 検証
+画像検証: tools/test_nami_icons.py の6件成功。
+内容: 原画像ハッシュ、全密度のサイズ/安全領域、単色版の3本線、
+アプリ/配布用の同一画像、Roundの参照整合性、ランチャーエイリアス維持。
+正方形/円形/角丸マスクと20～48px縮小画像を目視確認。
+merged Manifestでpackage/versionName/versionCodeとアプリアイコン参照を確認。
+git diff --check成功。
+Gradleとlintの最終結果は末尾に記載。
+
+6. 実機での確認事項と制限
+署名付きAPKの生成・インストールは実施していないため、上書き起動の実機確認は未実施。
+既存と同じ鍵で署名後、アンインストールせずに上書き更新する。
+・通常/静的アイコン設定の双方、円形/角丸などのランチャーマスク
+・Android 13以降のテーマアイコン、Android 12以降のスプラッシュ
+・ホーム、アプリ情報、プレイヤー代替画像、Wrapped、歌詞共有画像、ウィジェット、通知
+・既存ホームショートカットから起動できること（ランチャーのキャッシュ更新も確認）
+・既存の設定/ライブラリ/履歴/プレイリストが残ること
+・Welcome/Supportが再表示されず、音声再生・Canvas・翻訳・音量設定が維持されること
+署名付きAPK作成、GitHub push、Release公開は行っていない。
+
+
+7. 変更ファイル一覧（既存の.dm生成物を除く）
+C:\dev\nami-3.0\NAMI3_BUILD.txt
+C:\dev\nami-3.0\NAMI3_V86_REPORT.txt
+C:\dev\nami-3.0\Nami_icon_blue.png
+C:\dev\nami-3.0\app\build.gradle.kts
+C:\dev\nami-3.0\app\src\main\ic_launcher-playstore.png
+C:\dev\nami-3.0\app\src\main\kotlin\com\music\vivi\MainActivity.kt
+C:\dev\nami-3.0\app\src\main\kotlin\com\music\vivi\ui\component\LyricsImageCard.kt
+C:\dev\nami-3.0\app\src\main\kotlin\com\music\vivi\ui\player\Player.kt
+C:\dev\nami-3.0\app\src\main\kotlin\com\music\vivi\ui\player\PlayerV2Landscape.kt
+C:\dev\nami-3.0\app\src\main\kotlin\com\music\vivi\ui\player\Player_v2.kt
+C:\dev\nami-3.0\app\src\main\kotlin\com\music\vivi\ui\player\Thumbnail.kt
+C:\dev\nami-3.0\app\src\main\kotlin\com\music\vivi\ui\screens\settings\AboutScreen.kt
+C:\dev\nami-3.0\app\src\main\kotlin\com\music\vivi\ui\screens\wrapped\pages\ConclusionPage.kt
+C:\dev\nami-3.0\app\src\main\kotlin\com\music\vivi\ui\screens\wrapped\pages\WrappedIntro.kt
+C:\dev\nami-3.0\app\src\main\kotlin\com\music\vivi\utils\ComposeToImage.kt
+C:\dev\nami-3.0\app\src\main\res\drawable-hdpi\ic_stat_name.png
+C:\dev\nami-3.0\app\src\main\res\drawable-mdpi\ic_stat_name.png
+C:\dev\nami-3.0\app\src\main\res\drawable-xhdpi\ic_stat_name.png
+C:\dev\nami-3.0\app\src\main\res\drawable-xxhdpi\ic_stat_name.png
+C:\dev\nami-3.0\app\src\main\res\drawable-xxxhdpi\ic_stat_name.png
+C:\dev\nami-3.0\app\src\main\res\drawable\ic_launcher_foreground.webp
+C:\dev\nami-3.0\app\src\main\res\drawable\ic_launcher_monochrome.webp
+C:\dev\nami-3.0\app\src\main\res\drawable\icon.png
+C:\dev\nami-3.0\app\src\main\res\drawable\nami_launcher_foreground.png
+C:\dev\nami-3.0\app\src\main\res\drawable\nami_launcher_monochrome.png
+C:\dev\nami-3.0\app\src\main\res\drawable\vivi_music_small_icon.png
+C:\dev\nami-3.0\app\src\main\res\drawable\vivimusicnotification.png
+C:\dev\nami-3.0\app\src\main\res\mipmap-hdpi\ic_launcher.png
+C:\dev\nami-3.0\app\src\main\res\mipmap-hdpi\ic_launcher_background.png
+C:\dev\nami-3.0\app\src\main\res\mipmap-hdpi\ic_launcher_foreground.png
+C:\dev\nami-3.0\app\src\main\res\mipmap-hdpi\ic_launcher_monochrome.png
+C:\dev\nami-3.0\app\src\main\res\mipmap-mdpi\ic_launcher.png
+C:\dev\nami-3.0\app\src\main\res\mipmap-mdpi\ic_launcher_background.png
+C:\dev\nami-3.0\app\src\main\res\mipmap-mdpi\ic_launcher_foreground.png
+C:\dev\nami-3.0\app\src\main\res\mipmap-mdpi\ic_launcher_monochrome.png
+C:\dev\nami-3.0\app\src\main\res\mipmap-xhdpi\ic_launcher.png
+C:\dev\nami-3.0\app\src\main\res\mipmap-xhdpi\ic_launcher_background.png
+C:\dev\nami-3.0\app\src\main\res\mipmap-xhdpi\ic_launcher_foreground.png
+C:\dev\nami-3.0\app\src\main\res\mipmap-xhdpi\ic_launcher_monochrome.png
+C:\dev\nami-3.0\app\src\main\res\mipmap-xxhdpi\ic_launcher.png
+C:\dev\nami-3.0\app\src\main\res\mipmap-xxhdpi\ic_launcher_background.png
+C:\dev\nami-3.0\app\src\main\res\mipmap-xxhdpi\ic_launcher_foreground.png
+C:\dev\nami-3.0\app\src\main\res\mipmap-xxhdpi\ic_launcher_monochrome.png
+C:\dev\nami-3.0\app\src\main\res\mipmap-xxxhdpi\ic_launcher.png
+C:\dev\nami-3.0\app\src\main\res\mipmap-xxxhdpi\ic_launcher_background.png
+C:\dev\nami-3.0\app\src\main\res\mipmap-xxxhdpi\ic_launcher_foreground.png
+C:\dev\nami-3.0\app\src\main\res\mipmap-xxxhdpi\ic_launcher_monochrome.png
+C:\dev\nami-3.0\app\src\main\res\values\colors.xml
+C:\dev\nami-3.0\app\src\main\res\values\ic_launcher_background.xml
+C:\dev\nami-3.0\app\src\main\res\values\nami_icon_aliases.xml
+C:\dev\nami-3.0\assets\ic_launcher-playstore.png
+C:\dev\nami-3.0\fastlane\metadata\android\en-US\images\icon.png
+C:\dev\nami-3.0\tools\generate_nami_icons.py
+C:\dev\nami-3.0\tools\test_nami_icons.py
+
+8. 最終検証結果
+FOSS Custom Release Kotlin/Java・Androidリソースコンパイル: 成功。
+最終Gradle: BUILD SUCCESSFUL in 3m 25s / 472 tasks (18 executed, 454 up-to-date)。
+単体テスト: app 19件 + Motionartwork 15件、失敗/エラー/スキップなし。
+appは最初の実行で19件成功。Motionartworkは--rerun付きで15件を再実行して成功。
+最終確認では入力変更のないテストはUP-TO-DATE。画像契約テスト6件も成功。
+lint: 実行完了。v85 {'Warning': 799, 'Error': 84, 'Hint': 5} → v86 {'Warning': 793, 'Error': 84, 'Hint': 5}。
+診断のid・severity・message・対象ファイルで比較し、追加0件、削除6件。
+既存エラー84件は残るためlint cleanとは扱わない。今回の新規エラー/警告は0。
+初回lintは常駐JVMの解析が長時間完了せず、今回の検証クライアントを停止した。
+新しい一時JVM(--no-daemon)で再実行して完了。ルール無効化や検証条件の緩和はしていない。
+途中で検出した同一PNGの重複警告2件はdrawable alias化で解消して最終再確認。
+
+最終コマンド（署名付きAPKは生成しない）:
+.\gradlew.bat :app:compileUniversalFossCustomReleaseKotlin :app:testUniversalFossDebugUnitTest :Motionartwork:test :app:lintUniversalFossCustomRelease :app:processUniversalFossCustomReleaseManifest --no-daemon --no-configuration-cache --console=plain
+画像検証: Python + Pillowで tools/test_nami_icons.py を実行。
+
+ログ: C:\dev\nami-3.0\nami-v86-verified.log
+lintレポート: C:\dev\nami-3.0\app\build\reports\lint-results-universalFossCustomRelease.html
+マスク別プレビュー: C:\dev\nami-3.0\app\build\reports\nami-icon-preview.png
+小サイズプレビュー: C:\dev\nami-3.0\app\build\reports\nami-icon-small-preview.png

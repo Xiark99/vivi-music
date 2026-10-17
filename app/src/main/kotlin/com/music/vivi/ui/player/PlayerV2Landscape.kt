@@ -358,7 +358,7 @@ fun PlayerV2Landscape(
                         painter = painterResource(R.drawable.vivi_music_small_icon),
                         contentDescription = null,
                         modifier = Modifier.size(48.dp),
-                        tint = adaptivePrimary.copy(alpha = 0.5f)
+                        tint = Color.Unspecified
                     )
                 } else {
                     AsyncImage(

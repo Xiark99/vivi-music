@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <item name="vivi_music_small_icon" type="drawable">@drawable/icon</item>
+    <item name="vivimusicnotification" type="drawable">@drawable/ic_stat_name</item>
+</resources>

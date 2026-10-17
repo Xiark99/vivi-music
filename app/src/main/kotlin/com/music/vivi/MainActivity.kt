@@ -896,8 +896,7 @@ class MainActivity : ComponentActivity() {
                                                     painter = painterResource(R.drawable.icon),
                                                     contentDescription = null,
                                                     modifier = Modifier
-                                                        .size(32.dp)
-                                                        .clip(CircleShape),
+                                                        .size(32.dp),
                                                     contentScale = ContentScale.Crop
                                                 )
                                             }

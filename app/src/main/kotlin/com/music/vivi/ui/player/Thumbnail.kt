@@ -503,7 +503,6 @@ fun Thumbnail(
                                 dimensions = dimensions,
                                 hidePlayerThumbnail = hidePlayerThumbnail,
                                 cropAlbumArt = cropAlbumArt,
-                                textBackgroundColor = textBackgroundColor,
                                 layoutDirection = layoutDirection,
                                 onSeek = onSeekCallback,
                                 playerConnection = playerConnection,
@@ -615,7 +614,6 @@ private fun ThumbnailItem(
     dimensions: ThumbnailDimensions,
     hidePlayerThumbnail: Boolean,
     cropAlbumArt: Boolean,
-    textBackgroundColor: Color,
     layoutDirection: LayoutDirection,
     onSeek: (String, Boolean) -> Unit,
     playerConnection: com.music.vivi.playback.PlayerConnection,
@@ -744,7 +742,7 @@ private fun ThumbnailItem(
                     }
             ) {
                 if (hidePlayerThumbnail) {
-                    HiddenThumbnailPlaceholder(textBackgroundColor = textBackgroundColor)
+                    HiddenThumbnailPlaceholder()
                 } else {
                     val artworkUriToUse = if (item.mediaId == currentMediaId && !currentMediaThumbnail.isNullOrBlank()) {
                         currentMediaThumbnail
@@ -879,7 +877,6 @@ private fun ThumbnailItem(
  */
 @Composable
 private fun HiddenThumbnailPlaceholder(
-    textBackgroundColor: Color,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -891,7 +888,7 @@ private fun HiddenThumbnailPlaceholder(
         Icon(
             painter = painterResource(R.drawable.vivi_music_small_icon),
             contentDescription = stringResource(R.string.hide_player_thumbnail),
-            tint = textBackgroundColor.copy(alpha = 0.7f),
+            tint = Color.Unspecified,
             modifier = Modifier.size(120.dp)
         )
     }

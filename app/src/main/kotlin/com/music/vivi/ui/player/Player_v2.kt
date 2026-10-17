@@ -434,7 +434,7 @@ fun PlayerV2(
                                                 painter = painterResource(R.drawable.vivi_music_small_icon),
                                                 contentDescription = null,
                                                 modifier = Modifier.size(72.dp),
-                                                tint = adaptivePrimary.copy(alpha = 0.5f)
+                                                tint = Color.Unspecified
                                             )
                                         }
                                     } else {
@@ -608,7 +608,7 @@ fun PlayerV2(
                                                     painter = painterResource(R.drawable.vivi_music_small_icon),
                                                     contentDescription = null,
                                                     modifier = Modifier.size(32.dp),
-                                                    tint = adaptivePrimary.copy(alpha = 0.5f)
+                                                    tint = Color.Unspecified
                                                 )
                                             }
                                         } else {

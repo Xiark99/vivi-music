@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -111,7 +110,6 @@ fun WrappedIntro(onNext: () -> Unit) {
                     contentDescription = stringResource(id = R.string.wrapped_logo_content_description),
                     modifier = Modifier
                         .size(100.dp)
-                        .clip(CircleShape)
                 )
             }
 

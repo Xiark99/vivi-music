@@ -252,20 +252,14 @@ object ComposeToImage {
         val appNameY = headerY + logoIconSize / 2f - (appNamePaint.descent() + appNamePaint.ascent()) / 2f
         canvas.drawText(appName, appNameX, appNameY, appNamePaint)
 
-        // Draw Official New Vivi Music App Icon (R.drawable.icon) with circular clipping
+        // Preserve the supplied Nami logo silhouette when exporting lyrics cards.
         val rawLogo = androidx.core.content.ContextCompat.getDrawable(context, R.drawable.icon)?.toBitmap(
             width = logoIconSize.roundToInt(),
             height = logoIconSize.roundToInt()
         )
         rawLogo?.let {
             val logoRect = RectF(logoX, headerY, logoX + logoIconSize, headerY + logoIconSize)
-            val logoPath = Path().apply {
-                addOval(logoRect, Path.Direction.CW)
-            }
-            canvas.save()
-            canvas.clipPath(logoPath)
             canvas.drawBitmap(it, null, logoRect, null)
-            canvas.restore()
         }
 
         // --- Bottom Left Section: Song Details & Cover Art ---

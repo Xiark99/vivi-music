@@ -45,7 +45,6 @@ fun ConclusionPage(onClose: () -> Unit) {
                 contentDescription = stringResource(R.string.wrapped_logo_content_description),
                 modifier = Modifier
                     .size(96.dp)
-                    .clip(CircleShape)
             )
             Spacer(modifier = Modifier.height(24.dp))
             Text(
