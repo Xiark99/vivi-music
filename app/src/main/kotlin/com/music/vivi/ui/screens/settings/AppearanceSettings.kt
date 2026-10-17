@@ -50,7 +50,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -58,15 +57,13 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.music.vivi.LocalPlayerAwareWindowInsets
 import com.music.vivi.R
-import com.music.vivi.constants.CanvasSource
-import com.music.vivi.constants.CanvasSourceKey
+
 import com.music.vivi.constants.CanvasThumbnailAnimationKey
 import com.music.vivi.constants.ChipSortTypeKey
 import com.music.vivi.constants.CropAlbumArtKey
 import com.music.vivi.constants.DefaultOpenTabKey
 import com.music.vivi.constants.DensityScale
 import com.music.vivi.constants.DensityScaleKey
-import com.music.vivi.constants.DynamicThemeKey
 import com.music.vivi.constants.EnableDynamicIconKey
 import com.music.vivi.constants.EnableHighRefreshRateKey
 import com.music.vivi.constants.EnableLyricsThumbnailPlayPauseKey
@@ -88,7 +85,6 @@ import com.music.vivi.constants.PlayerButtonsStyle
 import com.music.vivi.constants.PlayerButtonsStyleKey
 import com.music.vivi.constants.PureBlackMiniPlayerKey
 import com.music.vivi.constants.RotatingThumbnailKey
-import com.music.vivi.constants.SelectedThemeColorKey
 import com.music.vivi.constants.SelectedFontKey
 import com.music.vivi.constants.AppFont
 import com.music.vivi.constants.ShowCachedPlaylistKey
@@ -121,7 +117,6 @@ import com.music.vivi.ui.component.PlayerSliderTrack
 import com.music.vivi.ui.component.SquigglySlider
 import com.music.vivi.ui.component.WavySlider
 import com.ermohdamaan.justforpixel.justforpixelexpressivelab.core.components.sliders.ExpressiveWavySlider
-import com.music.vivi.ui.theme.DefaultThemeColor
 import com.music.vivi.ui.theme.PlayerSliderColors
 import com.music.vivi.ui.utils.backToMain
 import com.music.vivi.utils.IconUtils
@@ -146,10 +141,7 @@ fun AppearanceSettings(
     activity: Activity,
     snackbarHostState: SnackbarHostState,
 ) {
-    val (dynamicTheme, onDynamicThemeChange) = rememberPreference(
-        DynamicThemeKey,
-        defaultValue = true
-    )
+
     val (selectedFontValue) = rememberPreference(
         SelectedFontKey,
         defaultValue = AppFont.SYSTEM.value
@@ -166,12 +158,6 @@ fun AppearanceSettings(
         ShowAudioQualityBadgeKey,
         defaultValue = false
     )
-    val (selectedThemeColorInt) = rememberPreference(
-        SelectedThemeColorKey,
-        defaultValue = DefaultThemeColor.toArgb()
-    )
-    // Check if user has selected a custom color (not the default/dynamic color)
-    val isUsingCustomColor = selectedThemeColorInt != DefaultThemeColor.toArgb()
     val coroutineScope = rememberCoroutineScope()
 
     fun handleIconChange(enabled: Boolean) {
@@ -1137,8 +1123,6 @@ fun AppearanceSettings(
                         trailingContent = {
                             val fontLabel = when (AppFont.fromValue(selectedFontValue)) {
                                 AppFont.SYSTEM -> stringResource(R.string.font_system)
-                                AppFont.GOOGLE_SANS -> stringResource(R.string.font_google_sans)
-                                AppFont.SANS_FLEX -> stringResource(R.string.font_sans_flex)
                                 AppFont.OUTFIT -> stringResource(R.string.font_outfit)
                                 AppFont.PLUS_JAKARTA_SANS -> stringResource(R.string.font_plus_jakarta_sans)
                                 AppFont.CUSTOM -> stringResource(R.string.font_custom)
@@ -1172,32 +1156,7 @@ fun AppearanceSettings(
                     )
                 )
 
-                // Only show dynamic theme option when using the default/dynamic color
-                // When a custom color is selected, dynamic theme is automatically disabled
-                if (!isUsingCustomColor) {
-                    add(
-                        Material3SettingsItem(
-                            icon = painterResource(R.drawable.palette),
-                            title = { Text(stringResource(R.string.enable_dynamic_theme)) },
-                            trailingContent = {
-                                Switch(
-                                    checked = dynamicTheme,
-                                    onCheckedChange = onDynamicThemeChange,
-                                    thumbContent = {
-                                        Icon(
-                                            painter = painterResource(
-                                                id = if (dynamicTheme) R.drawable.check else R.drawable.close
-                                            ),
-                                            contentDescription = null,
-                                            modifier = Modifier.size(SwitchDefaults.IconSize)
-                                        )
-                                    }
-                                )
-                            },
-                            onClick = { onDynamicThemeChange(!dynamicTheme) }
-                        )
-                    )
-                }
+
             }
         )
 

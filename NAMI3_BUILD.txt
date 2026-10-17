@@ -1,0 +1,42 @@
+Nami 3.0.0 - FOSS Custom Release build
+
+Working directory: C:\dev\nami-3.0
+Branch: feature/nami-3.0
+Official source: b6.0.8-r7 (b41c9e563ade592c03435d91d984a0ff56a42861)
+Nami 2.0 source: ea1cc440
+
+Version: 3.0.0 (81), previously 2.0.0 (80)
+Application ID: com.vivi.vivimusic.custom (unchanged)
+Keystore: C:\Users\akazu\.android\keystores\vivi-custom-release.jks (unchanged)
+Alias: vivi-custom (unchanged)
+
+PowerShell build steps:
+
+Set-Location C:\dev\nami-3.0
+$env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'
+$env:ANDROID_HOME = 'C:\Users\akazu\AppData\Local\Android\Sdk'
+$env:KEY_ALIAS = 'vivi-custom'
+$storeSecret = Read-Host 'Keystore password' -AsSecureString
+$keySecret = Read-Host 'Key password' -AsSecureString
+try {
+    $env:STORE_PASSWORD = [System.Net.NetworkCredential]::new('', $storeSecret).Password
+    $env:KEY_PASSWORD = [System.Net.NetworkCredential]::new('', $keySecret).Password
+    .\gradlew.bat :app:assembleUniversalFossCustomRelease --no-configuration-cache --console=plain
+    if ($LASTEXITCODE -ne 0) { throw 'Nami build failed' }
+} finally {
+    Remove-Item Env:STORE_PASSWORD -ErrorAction SilentlyContinue
+    Remove-Item Env:KEY_PASSWORD -ErrorAction SilentlyContinue
+    $storeSecret.Dispose()
+    $keySecret.Dispose()
+}
+
+APK output directory:
+C:\dev\nami-3.0\app\build\outputs\apk\universalFoss\customRelease
+
+Unsigned validation (no password needed):
+.\gradlew.bat :app:compileUniversalFossCustomReleaseKotlin :app:testUniversalFossDebugUnitTest :Motionartwork:test --no-configuration-cache --console=plain
+
+Before using as a daily driver, install the signed APK over Nami 2.0 without
+uninstalling it. Verify library/downloads/settings, history sync, AI translation,
+comments, Canvas, audio playback/seeking/crossfade, and task-clear behavior on a device.
+Signed APK production and on-device upgrade verification are left to the owner.

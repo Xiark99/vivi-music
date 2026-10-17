@@ -25,9 +25,9 @@ android {
         applicationId = "com.vivi.vivimusic"
         minSdk = 26
         targetSdk = 37
-        versionCode = 80
+        versionCode = 81
         val betaVersionName = project.findProperty("betaVersionName") as String?
-        versionName = betaVersionName ?: "2.0.0"
+        versionName = betaVersionName ?: "3.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
@@ -61,6 +61,7 @@ android {
         // GMS variant - with Google Cast support (requires Google Play Services)
         create("gms") {
             dimension = "variant"
+//            isDefault = true
             buildConfigField("Boolean", "CAST_AVAILABLE", "true")
         }
         
@@ -149,13 +150,6 @@ buildTypes {
         signingConfig = signingConfigs.getByName("debug")
         matchingFallbacks += listOf("release")
     }
-    create("videoTestRelease") {
-        initWith(getByName("release"))
-        // Kept separate from customRelease so a video test APK can be installed alongside it.
-        applicationIdSuffix = ".custom.videotest"
-        versionNameSuffix = "-video-test"
-        matchingFallbacks += listOf("release")
-    }
     debug {
         applicationIdSuffix = ".debug"
         isDebuggable = true
@@ -222,7 +216,7 @@ buildTypes {
 androidComponents {
     // Test-only variants are intentionally FOSS-only; do not create redundant GMS variants.
     beforeVariants { variantBuilder ->
-        if (variantBuilder.buildType in setOf("videoTestRelease", "customTest") &&
+        if (variantBuilder.buildType == "customTest" &&
             variantBuilder.productFlavors.any { (_, flavor) -> flavor == "gms" }
         ) {
             variantBuilder.enable = false
@@ -326,11 +320,9 @@ dependencies {
     implementation(project(":innertube"))
     implementation(project(":kizzy"))
     implementation(project(":lastfm"))
-    implementation(project(":canvas"))
+    implementation(project(":Motionartwork"))
     implementation(project(":shazamkit"))
     implementation(project(":artistvideo"))
-    implementation(project(":applecanvas"))
-    implementation(project(":vivimusiccanvas"))
     implementation(project(":jiosaavn"))
     implementation(project(":spotify"))
     implementation(project(":lyricsProvider"))
@@ -357,5 +349,7 @@ dependencies {
     implementation(libs.haze)
     implementation(libs.work.runtime.ktx)
     implementation(libs.androidx.core.splashscreen)
+
+    testImplementation(libs.junit)
 }
 

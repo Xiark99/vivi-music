@@ -21,6 +21,15 @@
     </a>
   </p>
 
+  <p align="center">
+    <a href="https://trendshift.io/repositories/17110?utm_source=repository-badge&utm_medium=badge&utm_campaign=badge-repository-17110" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/repositories/17110" alt="vivizzz007%2Fvivi-music | Trendshift" width="250" height="55"/></a>
+  </p>
+  <p align="center">
+    <a href="https://trendshift.io/repositories/17110?utm_source=trendshift-badge&utm_medium=badge&utm_campaign=badge-trendshift-17110" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/17110/daily?language=Kotlin" alt="vivizzz007%2Fvivi-music | Trendshift" width="250" height="55"/></a>
+    &nbsp;&nbsp;
+    <a href="https://trendshift.io/repositories/17110?utm_source=trendshift-badge&utm_medium=badge&utm_campaign=badge-trendshift-17110" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/17110/weekly?language=Kotlin" alt="vivizzz007%2Fvivi-music | Trendshift" width="250" height="55"/></a>
+  </p>
+
 </div>
 
 <hr>
@@ -234,24 +243,47 @@
 <hr>
 
 <div align="center">
-  <table border="0" cellpadding="15" cellspacing="0" width="85%">
+
+  <h2>🌐 Community &amp; Support</h2>
+  <p><i>Connect · Collaborate · Contribute</i></p>
+  <br>
+
+  <table border="0" cellpadding="14" cellspacing="0" width="88%">
     <tr>
+      <th align="left">Channel</th>
+      <th align="left">About</th>
+      <th align="center">Action</th>
+    </tr>
+    <tr>
+      <td><b>✈️ Telegram</b></td>
+      <td>Chat with fellow music lovers, get support &amp; stay updated</td>
       <td align="center">
-        <h3>💬 Community & Support</h3>
-        <p>Connect with other music lovers, suggest new features, report bugs, and stay updated with the latest releases!</p>
-        <br>
         <a href="https://t.me/+Nen-QpiY0tk1OTE9">
-          <img src="https://img.shields.io/badge/Telegram-Join%20Community-2CA5E0?style=for-the-badge&logo=telegram&logoColor=white" alt="Join Telegram">
+          <img src="https://img.shields.io/badge/Join%20Now-2CA5E0?style=flat-square&logo=telegram&logoColor=white" alt="Telegram">
         </a>
-        <br><br>
-        <sub>
-          <a href="https://github.com/vivizzz007/vivi-music/issues">🐞 Report Bugs</a> &nbsp;•&nbsp;
-          <a href="https://github.com/vivizzz007/vivi-music/discussions">💬 Discussions</a> &nbsp;•&nbsp;
-          <a href="https://github.com/vivizzz007/vivi-music/releases">🚀 Releases</a>
-        </sub>
       </td>
     </tr>
+    <tr>
+      <td><b>🐛 Bug Reports</b></td>
+      <td>Found something broken? Help us fix it by opening a GitHub issue</td>
+      <td align="center">
+        <a href="https://github.com/vivizzz007/vivi-music/issues">
+          <img src="https://img.shields.io/badge/Report-EA4335?style=flat-square&logo=github&logoColor=white" alt="Report Bug">
+        </a>
+      </td>
+    </tr>
+    <tr>
+      <td><b>💡 Discussions</b></td>
+      <td>Share ideas, request features &amp; spark community conversations</td>
+      <td align="center">
+        <a href="https://github.com/vivizzz007/vivi-music/discussions">
+          <img src="https://img.shields.io/badge/Discuss-6e40c9?style=flat-square&logo=github&logoColor=white" alt="Discussions">
+        </a>
+      </td>
+    </tr>
+
   </table>
+
 </div>
 
 <hr>
@@ -268,7 +300,7 @@
       <td width="40%" align="left">
         <b>💡 Special Thanks</b>
         <ul>
-          <li><strong><a href="https://github.com/mostafaalagamy">Mostafa Alagamy</a></strong> – For their inspiration and contributions to the open source community.</li>
+          <li><strong><a href="https://github.com/mostafaalagamy">Mostafa Alagamy</a></strong> – Creator of <a href="https://github.com/mostafaalagamy/Metrolist">Metrolist</a>, the project that inspired VIVI Music. Huge thanks for the foundation and open-source contributions! 🌟</li>
           <li><strong><a href="https://github.com/ZemerTeam/zemer-cipher">@Zemer</a></strong> – Huge congratulations and thanks for inventing the new playback method! 🎉</li>
         </ul>
       </td>

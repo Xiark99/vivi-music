@@ -409,6 +409,8 @@ class MainActivity : ComponentActivity() {
             val window = this@MainActivity.window
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 val layoutParams = window.attributes
+                val oldModeId = layoutParams.preferredDisplayModeId
+                
                 if (enableHighRefreshRate) {
                     layoutParams.preferredDisplayModeId = 0
                 } else {
@@ -420,15 +422,23 @@ class MainActivity : ComponentActivity() {
                         layoutParams.preferredDisplayModeId = mode60.modeId
                     }
                 }
-                window.attributes = layoutParams
+                
+                if (layoutParams.preferredDisplayModeId != oldModeId) {
+                    window.attributes = layoutParams
+                }
             } else {
                 val params = window.attributes
+                val oldRefreshRate = params.preferredRefreshRate
+                
                 if (enableHighRefreshRate) {
                     params.preferredRefreshRate = 0f
                 } else {
                     params.preferredRefreshRate = 60f
                 }
-                window.attributes = params
+                
+                if (params.preferredRefreshRate != oldRefreshRate) {
+                    window.attributes = params
+                }
             }
         }
 
@@ -823,8 +833,15 @@ class MainActivity : ComponentActivity() {
                             mediaItem: MediaItem?,
                             reason: Int,
                         ) {
-                            if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED &&
-                                mediaItem != null &&
+                            if (mediaItem != null && playerBottomSheetState.isDismissed) {
+                                playerBottomSheetState.collapseSoft()
+                            }
+                        }
+
+                        override fun onPlaybackStateChanged(playbackState: Int) {
+                            if (playbackState == Player.STATE_READY &&
+                                player.playWhenReady &&
+                                player.currentMediaItem != null &&
                                 playerBottomSheetState.isDismissed
                             ) {
                                 playerBottomSheetState.collapseSoft()

@@ -153,7 +153,11 @@ import coil3.imageLoader
 import coil3.request.ImageRequest
 import coil3.request.allowHardware
 import coil3.toBitmap
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.cache.CacheDataSource
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.music.vivi.LocalDatabase
+import com.music.vivi.LocalPlayerConnection
 import com.music.vivi.LocalDownloadUtil
 import com.music.vivi.LocalListenTogetherManager
 import com.music.vivi.LocalPlayerConnection
@@ -232,17 +236,21 @@ import androidx.media3.common.MimeTypes
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
-import com.music.vivi.applecanvas.AppleMusicCanvasProvider
-import com.music.vivi.canvas.CanvasArtwork
-import com.music.vivi.canvas.TidalCanvasProvider
-import com.music.vivi.constants.CanvasSource
-import com.music.vivi.constants.CanvasSourceKey
+import com.music.vivi.Motionartwork.apple.AppleMusicMotionartworkProvider
+import com.music.vivi.Motionartwork.Motionartwork
+import com.music.vivi.Motionartwork.tidal.TidalMotionartworkProvider
+import com.music.vivi.Motionartwork.vivimusic.ViviMusicMotionartworkProvider
+import com.music.vivi.constants.MotionartworkSource
+import com.music.vivi.constants.MotionartworkSourceKey
 import com.music.vivi.constants.CanvasThumbnailAnimationKey
+import com.music.vivi.constants.SpotifyCanvasEnabledKey
+import com.music.spotify.Spotify
+import com.music.spotify.SpotifyCanvasProvider
 import com.music.vivi.constants.CanvasLoadOnlyWifiKey
 import com.music.vivi.extensions.metadata
-import com.music.vivi.ui.player.CanvasArtworkPlaybackCache
+import com.music.vivi.ui.player.MotionartworkPlaybackCache
 import com.music.vivi.utils.isWifiConnected
-import com.music.vivi.vivimusiccanvas.ViviMusicCanvasProvider
+import com.music.vivi.utils.SpotifySessionManager
 import java.util.Locale
 
 private fun selectedAudioCodecLabel(tracks: Tracks): String? {
@@ -309,8 +317,10 @@ fun BottomSheetPlayer(
     }
 
     val enableCanvas by rememberPreference(CanvasThumbnailAnimationKey, true)
-    val (canvasSource) = rememberEnumPreference(CanvasSourceKey, defaultValue = CanvasSource.AUTO)
+    val (motionartworkSource) = rememberEnumPreference(MotionartworkSourceKey, defaultValue = MotionartworkSource.AUTO)
     val canvasLoadOnlyWifi by rememberPreference(CanvasLoadOnlyWifiKey, defaultValue = false)
+    val spotifyCanvasEnabled by rememberPreference(SpotifyCanvasEnabledKey, false)
+    val usePlayerV2 by rememberPreference(UsePlayerV2Key, false)
 
     val shouldUseDarkButtonColors = remember(playerBackground, useDarkTheme) {
         when (playerBackground) {
@@ -555,10 +565,52 @@ fun BottomSheetPlayer(
     )
 
     val albumTitle = mediaMetadata?.album?.title
-    var canvasArtwork by remember(mediaMetadata?.id, albumTitle) { mutableStateOf<CanvasArtwork?>(null) }
+    var canvasArtwork by remember(mediaMetadata?.id, albumTitle) { mutableStateOf<Motionartwork?>(null) }
     var canvasFetchInFlight by remember(mediaMetadata?.id, albumTitle) { mutableStateOf(false) }
+    var spotifyCanvasUrl by remember(mediaMetadata?.id, albumTitle) { mutableStateOf<String?>(null) }
+    
+    val isNetworkConnected by (LocalPlayerConnection.current?.service?.connectivityObserver?.networkStatus ?: kotlinx.coroutines.flow.MutableStateFlow(false)).collectAsState(initial = false)
 
-    LaunchedEffect(mediaMetadata?.id, albumTitle, playerBackground, canvasSource) {
+    LaunchedEffect(mediaMetadata?.id, albumTitle, playerBackground, motionartworkSource, spotifyCanvasEnabled, Spotify.accessToken, isNetworkConnected) {
+        val item = mediaMetadata ?: return@LaunchedEffect
+        
+        if (!spotifyCanvasEnabled) {
+            spotifyCanvasUrl = null
+        } else {
+            val prefs = context.getSharedPreferences("spotify_canvas_url_map", android.content.Context.MODE_PRIVATE)
+            val cachedUrl = prefs.getString(item.id, null)
+            if (cachedUrl != null) {
+                spotifyCanvasUrl = cachedUrl
+                timber.log.Timber.d("SpotifyCanvas: Loaded url from local SharedPreferences cache for offline bypass - ID: ${item.id}")
+            } else {
+                val accessToken = SpotifySessionManager.getValidAccessToken(context)
+                if (accessToken != null && (!canvasLoadOnlyWifi || isWifiConnected(context))) {
+                    timber.log.Timber.d("SpotifyCanvas: Triggering Canvas fetch for track: ${item.title}")
+                    withContext(Dispatchers.IO) {
+                        // Try REST API first as it's more reliable
+                        val trackId = Spotify.searchTrackRest("${item.title} ${item.artists.joinToString { it.name }}") 
+                            ?: Spotify.searchTrack("${item.title} ${item.artists.joinToString { it.name }}")?.id
+
+                        timber.log.Timber.d("SpotifyCanvas: Resolved Track ID from search: $trackId")
+
+                        if (trackId != null) {
+                            val canvasRes = SpotifyCanvasProvider.getCanvasUrl(trackId, accessToken)
+                            timber.log.Timber.d("SpotifyCanvas: Canvas URL extraction result: $canvasRes")
+                            val fetchedUrl = canvasRes.getOrNull()
+                            if (fetchedUrl != null) {
+                                prefs.edit().putString(item.id, fetchedUrl).apply()
+                            }
+                            withContext(Dispatchers.Main) {
+                                spotifyCanvasUrl = fetchedUrl
+                            }
+                        }
+                    }
+                } else {
+                    timber.log.Timber.d("SpotifyCanvas: Conditions not met to fetch. canvasEnabled=$spotifyCanvasEnabled, tokenReady=${Spotify.accessToken != null}, itemReady=${item != null}")
+                }
+            }
+        }
+
         if (playerBackground != PlayerBackgroundStyle.APPLE_MUSIC || !enableCanvas) {
             canvasArtwork = null
             return@LaunchedEffect
@@ -567,11 +619,12 @@ fun BottomSheetPlayer(
             canvasArtwork = null
             return@LaunchedEffect
         }
-        val item = mediaMetadata ?: return@LaunchedEffect
         
+        val cacheKey = "${item.id}:${motionartworkSource.name}"
         // Use cached artwork if available
-        CanvasArtworkPlaybackCache.get("${item.id}:${canvasSource.name}")?.let { cached ->
+        MotionartworkPlaybackCache.get(cacheKey)?.let { cached ->
             canvasArtwork = cached
+            spotifyCanvasUrl = null // Prioritize Motionartwork, disable Spotify Canvas
             return@LaunchedEffect
         }
 
@@ -588,31 +641,31 @@ fun BottomSheetPlayer(
             val a = requestedArtist
 
             android.util.Log.d("CanvasDebug", "=== Canvas Fetch START ===")
-            android.util.Log.d("CanvasDebug", "Source     : $canvasSource")
+            android.util.Log.d("CanvasDebug", "Source     : $motionartworkSource")
             android.util.Log.d("CanvasDebug", "Storefront : $storefront")
             android.util.Log.d("CanvasDebug", "Title      : '$requestedTitle'")
             android.util.Log.d("CanvasDebug", "Artist     : '$requestedArtist'")
             android.util.Log.d("CanvasDebug", "Album      : '$requestedAlbum' (blank=${requestedAlbum.isBlank()})")
 
-            val fetched = when (canvasSource) {
-                CanvasSource.AUTO -> {
-                    AppleMusicCanvasProvider.getBySongArtist(s, a, requestedAlbum, storefront)
-                        ?.takeIf { !it.preferredAnimationUrl.isNullOrBlank() && validateCanvasMatch(it, s, a, requestedAlbum) }
-                        ?: TidalCanvasProvider.getBySongArtist(s, a, requestedAlbum)
-                        ?.takeIf { !it.preferredAnimationUrl.isNullOrBlank() && validateCanvasMatch(it, s, a, requestedAlbum) }
-                        ?: ViviMusicCanvasProvider.getBySongArtist(s, a, requestedAlbum)
-                        ?.takeIf { !it.preferredAnimationUrl.isNullOrBlank() && validateCanvasMatch(it, s, a, requestedAlbum) }
+            val fetched = when (motionartworkSource) {
+                MotionartworkSource.AUTO -> {
+                    AppleMusicMotionartworkProvider.getBySongArtist(s, a, requestedAlbum, storefront)
+                        ?.takeIf { !it.preferredAnimationUrl.isNullOrBlank() && validateMotionartworkMatch(it, s, a, requestedAlbum) }
+                        ?: TidalMotionartworkProvider.getBySongArtist(s, a, requestedAlbum)
+                        ?.takeIf { !it.preferredAnimationUrl.isNullOrBlank() && validateMotionartworkMatch(it, s, a, requestedAlbum) }
+                        ?: ViviMusicMotionartworkProvider.getBySongArtist(s, a, requestedAlbum)
+                        ?.takeIf { !it.preferredAnimationUrl.isNullOrBlank() && validateMotionartworkMatch(it, s, a, requestedAlbum) }
                 }
-                CanvasSource.APPLE_MUSIC -> {
-                    AppleMusicCanvasProvider.getBySongArtist(s, a, requestedAlbum, storefront)
+                MotionartworkSource.APPLE_MUSIC -> {
+                    AppleMusicMotionartworkProvider.getBySongArtist(s, a, requestedAlbum, storefront)
                         ?.takeIf { !it.preferredAnimationUrl.isNullOrBlank() }
                 }
-                CanvasSource.VIVIMUSIC -> {
-                    ViviMusicCanvasProvider.getBySongArtist(s, a, requestedAlbum)
+                MotionartworkSource.VIVIMUSIC -> {
+                    ViviMusicMotionartworkProvider.getBySongArtist(s, a, requestedAlbum)
                         ?.takeIf { !it.preferredAnimationUrl.isNullOrBlank() }
                 }
-                CanvasSource.TIDAL -> {
-                    TidalCanvasProvider.getBySongArtist(s, a, requestedAlbum)
+                MotionartworkSource.TIDAL -> {
+                    TidalMotionartworkProvider.getBySongArtist(s, a, requestedAlbum)
                         ?.takeIf { !it.preferredAnimationUrl.isNullOrBlank() }
                 }
             }
@@ -628,7 +681,7 @@ fun BottomSheetPlayer(
             val validated = fetched?.let { artwork ->
                 // For AUTO mode validation is already done per-provider inside takeIf.
                 // For single-source modes this block acts as the safety net.
-                val passes = validateCanvasMatch(artwork, requestedTitle, requestedArtist, requestedAlbum)
+                val passes = validateMotionartworkMatch(artwork, requestedTitle, requestedArtist, requestedAlbum)
 
                 android.util.Log.d("CanvasDebug", "Validation:")
                 android.util.Log.d("CanvasDebug", "  artistMatches  : ${artwork.artist.orEmpty().trim().equals(requestedArtist.trim(), ignoreCase = true)}  ('${artwork.artist?.trim()}' vs '${requestedArtist.trim()}')")
@@ -645,7 +698,8 @@ fun BottomSheetPlayer(
             withContext(Dispatchers.Main) {
                 canvasArtwork = validated
                 if (validated != null) {
-                    CanvasArtworkPlaybackCache.put("${item.id}:${canvasSource.name}", validated)
+                    MotionartworkPlaybackCache.put(cacheKey, validated)
+                    spotifyCanvasUrl = null // Prioritize Motionartwork, disable Spotify Canvas
                 }
                 canvasFetchInFlight = false
             }
@@ -846,7 +900,35 @@ fun BottomSheetPlayer(
                     .fillMaxSize()
                     .background(bottomSheetBackgroundColor)
             ) {
-                when (playerBackground) {
+                if (spotifyCanvasUrl != null && !usePlayerV2) {
+                    val overlayAlpha by animateFloatAsState(
+                        targetValue = if (showInlineLyrics) 0.85f else 0.4f,
+                        label = "canvasDimmer"
+                    )
+                    androidx.compose.animation.AnimatedContent(
+                        targetState = spotifyCanvasUrl,
+                        transitionSpec = { fadeIn(tween(800)) togetherWith fadeOut(tween(800)) },
+                        label = "spotifyCanvasBackground"
+                    ) { url ->
+                        if (url != null) {
+                            Box(modifier = Modifier.fillMaxSize().alpha(backgroundAlpha)) {
+                                if (backgroundAlpha > 0.01f) {
+                                    BackgroundVideoView(
+                                        videoUrl = url,
+                                        isPlaying = isPlaying,
+                                        resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(Color.Black.copy(alpha = overlayAlpha))
+                                )
+                            }
+                        }
+                    }
+                } else when (playerBackground) {
                     PlayerBackgroundStyle.BLUR -> {
                         AnimatedContent(
                             targetState = mediaMetadata?.thumbnailUrl,
@@ -1320,7 +1402,6 @@ fun BottomSheetPlayer(
             )
         },
     ) {
-        val usePlayerV2 by rememberPreference(UsePlayerV2Key, false)
         if (usePlayerV2) {
              PlayerV2(state, navController, modifier)
         } else {
@@ -1363,10 +1444,10 @@ fun BottomSheetPlayer(
                     .padding(horizontal = PlayerHorizontalPadding),
             ) {
                 AnimatedContent(
-                    targetState = showInlineLyrics,
+                    targetState = showInlineLyrics || spotifyCanvasUrl != null,
                     label = "ThumbnailAnimation"
-                ) { showLyrics ->
-                    if (showLyrics) {
+                ) { showSmallThumbnail ->
+                    if (showSmallThumbnail) {
                         Row {
                             if (hidePlayerThumbnail) {
                                 Box(
@@ -1859,13 +1940,18 @@ fun BottomSheetPlayer(
                         onValueChangeFinished = {
                             if (!isListenTogetherGuest) {
                                 sliderPosition?.let {
-                                    if (isCasting) {
-                                        castHandler?.seekTo(it)
-                                        lastManualSeekTime = System.currentTimeMillis()
-                                    } else {
-                                        playerConnection.player.seekTo(it)
+                                    // Ignore seeks while duration is unknown (track still
+                                    // loading): the seek would be lost and the optimistic
+                                    // position update would show a wrong slider position.
+                                    if (duration != C.TIME_UNSET && duration > 0) {
+                                        if (isCasting) {
+                                            castHandler?.seekTo(it)
+                                            lastManualSeekTime = System.currentTimeMillis()
+                                        } else {
+                                            playerConnection.player.seekTo(it)
+                                        }
+                                        position = it
                                     }
-                                    position = it
                                 }
                                 sliderPosition = null
                             }
@@ -1890,13 +1976,15 @@ fun BottomSheetPlayer(
                             },
                             onValueChangeFinished = {
                                 sliderPosition?.let {
-                                    if (isCasting) {
-                                        castHandler?.seekTo(it)
-                                        lastManualSeekTime = System.currentTimeMillis()
-                                    } else {
-                                        playerConnection.player.seekTo(it)
+                                    if (duration != C.TIME_UNSET && duration > 0) {
+                                        if (isCasting) {
+                                            castHandler?.seekTo(it)
+                                            lastManualSeekTime = System.currentTimeMillis()
+                                        } else {
+                                            playerConnection.player.seekTo(it)
+                                        }
+                                        position = it
                                     }
-                                    position = it
                                 }
                                 sliderPosition = null
                             },
@@ -1917,13 +2005,15 @@ fun BottomSheetPlayer(
                             },
                             onValueChangeFinished = {
                                 sliderPosition?.let {
-                                    if (isCasting) {
-                                        castHandler?.seekTo(it)
-                                        lastManualSeekTime = System.currentTimeMillis()
-                                    } else {
-                                        playerConnection.player.seekTo(it)
+                                    if (duration != C.TIME_UNSET && duration > 0) {
+                                        if (isCasting) {
+                                            castHandler?.seekTo(it)
+                                            lastManualSeekTime = System.currentTimeMillis()
+                                        } else {
+                                            playerConnection.player.seekTo(it)
+                                        }
+                                        position = it
                                     }
-                                    position = it
                                 }
                                 sliderPosition = null
                             },
@@ -1964,13 +2054,15 @@ fun BottomSheetPlayer(
                         onValueChangeFinished = {
                             if (!isListenTogetherGuest) {
                                 sliderPosition?.let {
-                                    if (isCasting) {
-                                        castHandler?.seekTo(it)
-                                        lastManualSeekTime = System.currentTimeMillis()
-                                    } else {
-                                        playerConnection.player.seekTo(it)
+                                    if (duration != C.TIME_UNSET && duration > 0) {
+                                        if (isCasting) {
+                                            castHandler?.seekTo(it)
+                                            lastManualSeekTime = System.currentTimeMillis()
+                                        } else {
+                                            playerConnection.player.seekTo(it)
+                                        }
+                                        position = it
                                     }
-                                    position = it
                                 }
                                 sliderPosition = null
                             }
@@ -2004,13 +2096,15 @@ fun BottomSheetPlayer(
                         onValueChangeFinished = {
                             if (!isListenTogetherGuest) {
                                 sliderPosition?.let {
-                                    if (isCasting) {
-                                        castHandler?.seekTo(it)
-                                        lastManualSeekTime = System.currentTimeMillis()
-                                    } else {
-                                        playerConnection.player.seekTo(it)
+                                    if (duration != C.TIME_UNSET && duration > 0) {
+                                        if (isCasting) {
+                                            castHandler?.seekTo(it)
+                                            lastManualSeekTime = System.currentTimeMillis()
+                                        } else {
+                                            playerConnection.player.seekTo(it)
+                                        }
+                                        position = it
                                     }
-                                    position = it
                                 }
                                 sliderPosition = null
                             }
@@ -2502,9 +2596,9 @@ fun BottomSheetPlayer(
                                 InlineLyricsView(
                                     mediaMetadata = mediaMetadata,
                                     showLyrics = showLyrics,
-                                    positionProvider = { effectivePosition }
+                                    positionProvider = { sliderPosition ?: effectivePosition }
                                 )
-                            } else {
+                            } else if (spotifyCanvasUrl == null && playerBackground != PlayerBackgroundStyle.APPLE_MUSIC) {
                                 Thumbnail(
                                     sliderPositionProvider = sliderPositionProvider,
                                     modifier = Modifier.animateContentSize(),
@@ -2564,9 +2658,9 @@ fun BottomSheetPlayer(
                                 InlineLyricsView(
                                     mediaMetadata = mediaMetadata,
                                     showLyrics = showLyrics,
-                                    positionProvider = { effectivePosition }
+                                    positionProvider = { sliderPosition ?: effectivePosition }
                                 )
-                            } else {
+                            } else if (spotifyCanvasUrl == null && playerBackground != PlayerBackgroundStyle.APPLE_MUSIC) {
                                 Thumbnail(
                                     sliderPositionProvider = sliderPositionProvider,
                                     modifier = Modifier.nestedScroll(state.preUpPostDownNestedScrollConnection),
@@ -2797,8 +2891,23 @@ private fun BackgroundVideoView(
         }
     }
 
+    val spotifyCanvasCache = LocalPlayerConnection.current?.service?.spotifyCanvasCache
+
     val exoPlayer = remember {
+        val defaultDataSourceFactory = DefaultDataSource.Factory(context)
+        val mediaSourceFactory = if (spotifyCanvasCache != null) {
+            val cacheDataSourceFactory = CacheDataSource.Factory()
+                .setCache(spotifyCanvasCache)
+                .setUpstreamDataSourceFactory(defaultDataSourceFactory)
+                .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+            DefaultMediaSourceFactory(context)
+                .setDataSourceFactory(cacheDataSourceFactory)
+        } else {
+            DefaultMediaSourceFactory(context)
+        }
+
         ExoPlayer.Builder(context)
+            .setMediaSourceFactory(mediaSourceFactory)
             .setTrackSelector(trackSelector)
             .setLoadControl(
                 DefaultLoadControl.Builder()

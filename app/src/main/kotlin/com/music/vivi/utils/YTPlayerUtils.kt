@@ -128,7 +128,6 @@ object YTPlayerUtils {
         connectivityManager: ConnectivityManager,
         context: android.content.Context? = null,
         contentHints: ContentHints = ContentHints(),
-        wantVideo: Boolean = false,
     ): Result<InnerTubeXPlayer.PlaybackData> {
         // ── JioSaavn intercept ───────────────────────────────────────────────
         // If the user has enabled JioSaavn streaming, try to resolve the stream
@@ -347,14 +346,23 @@ object YTPlayerUtils {
         }
         // ── End JioSaavn intercept ───────────────────────────────────────────
 
-        val firstAttempt = resolvePlaybackData(videoId, playlistId, audioQuality, connectivityManager, contentHints, wantVideo)
+        val firstAttempt = resolvePlaybackData(videoId, playlistId, audioQuality, connectivityManager, contentHints)
         
         if (firstAttempt.isFailure && YouTube.cookie == null) {
             Timber.tag(TAG).w("Playback failed for guest. Rotating session and retrying...")
             PlaybackLogManager.log(PlaybackLogLevel.BOT, "Playback failed for guest", "Triggering bot detection mitigation (rotating guest session)")
             BotDetectionMitigator.rotateGuestSession()
-            val retryResult = resolvePlaybackData(videoId, playlistId, audioQuality, connectivityManager, contentHints, wantVideo)
+            val retryResult = resolvePlaybackData(videoId, playlistId, audioQuality, connectivityManager, contentHints)
             retryResult.onSuccess { BotDetectionMitigator.notifyPlaybackSuccess() }
+            if (retryResult.isFailure) {
+                val err = retryResult.exceptionOrNull()
+                Timber.tag(TAG).e(err, "Stream resolution exhausted for $videoId after session rotation")
+                PlaybackLogManager.log(
+                    PlaybackLogLevel.ERROR,
+                    "No playable stream",
+                    "All clients failed for $videoId: ${err?.message ?: "unknown"}"
+                )
+            }
             return retryResult
         }
         
@@ -368,7 +376,6 @@ object YTPlayerUtils {
         audioQuality: AudioQuality,
         connectivityManager: ConnectivityManager,
         contentHints: ContentHints = ContentHints(),
-        wantVideo: Boolean = false,
     ): Result<InnerTubeXPlayer.PlaybackData> {
         Timber.tag(logTag).d("Fetching player response for videoId: ${videoId} via InnerTubeX")
         PlaybackLogManager.log(PlaybackLogLevel.INFO, "Resolving playback data", "Video: ${videoId}")
@@ -387,7 +394,6 @@ object YTPlayerUtils {
             connectivityManager = connectivityManager,
             contentHints = mappedHints,
             allowBoundedRange = true,
-            wantVideo = wantVideo,
         )
     }
 

@@ -158,9 +158,6 @@ class PlayerConnection(
 
     val error = MutableStateFlow<PlaybackException?>(null)
     val isMuted = service.isMuted
-    /** State from the primary MusicService ExoPlayer; no UI-owned player is used for video. */
-    val videoPlaybackRequestedMediaId = service.videoPlaybackRequestedMediaId
-    val videoPlaybackActiveMediaId = service.videoPlaybackActiveMediaId
 
     val waitingForNetworkConnection = service.waitingForNetworkConnection
     
@@ -421,6 +418,7 @@ class PlayerConnection(
             // enabled "Crossfade on manual skip"); fall back to an instant
             // seek otherwise.
             if (!service.manualSkipToNextWithCrossfade()) {
+                service.cancelCrossfadeIfActive()
                 player.seekToNext()
                 if (player.playbackState == Player.STATE_IDLE || player.playbackState == Player.STATE_ENDED) {
                     player.prepare()
@@ -462,6 +460,7 @@ class PlayerConnection(
                 // Otherwise go to previous media item — try a crossfaded
                 // manual skip first, falling back to an instant seek.
                 if (!service.manualSkipToPreviousWithCrossfade()) {
+                    service.cancelCrossfadeIfActive()
                     player.seekToPreviousMediaItem()
                     if (player.playbackState == Player.STATE_IDLE || player.playbackState == Player.STATE_ENDED) {
                         player.prepare()
@@ -472,6 +471,14 @@ class PlayerConnection(
             }
         } catch (e: Exception) {
             Timber.tag(TAG).e(e, "Error in seekToPrevious")
+        }
+    }
+
+    fun seekToQueueItem(index: Int) {
+        if (!service.manualSeekToIndexWithCrossfade(index)) {
+            service.cancelCrossfadeIfActive()
+            player.seekToDefaultPosition(index)
+            player.playWhenReady = true
         }
     }
 

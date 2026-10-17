@@ -1,0 +1,104 @@
+Nami 3.0.0 統合報告（2026-10-17）
+
+作業範囲
+作業フォルダ: C:\dev\nami-3.0
+ブランチ: feature/nami-3.0
+開始時: ea1cc440 / Nami 2.0.0、未コミット変更なし
+公式取り込み元: https://github.com/vivizzz007/vivi-music/releases/tag/b6.0.8-r7
+公式コミット: b41c9e563ade592c03435d91d984a0ff56a42861
+共通祖先: 86818f197a18d3b449e1731d856b8585177ee56b
+
+公式取り込み
+指定タグをfetchで検証し、既存Namiブランチへ未コミットのマージを実施。
+公式の再生・クロスフェード修正、歌詞プロバイダー、コメント更新、
+プレイリスト書き出し、Motionartwork統合などの変更を取り込んだ。
+競合は解消済み。マージコミットは作成していない。
+コミット履歴への統合確定には、差分の確認後にマージコミットを作成する必要がある。
+
+維持したNami独自変更
+- AI歌詞翻訳の追加プロンプト、設定UI、各AIサービスへの受け渡し、
+  プロンプトごとのキャッシュ識別と空プロンプト時の既存キャッシュ互換性。
+- YouTube Music履歴同期のWEB_REMIX signatureTimestamp修正。
+  公式側の新鮮な履歴URL取得・再生登録処理と組み合わせて維持。
+- Library Mixの横長Liked Songsカードを含む独自UI。
+  LibraryMixScreen.ktはNami 2.0と同一。
+- Apple Music風プレイヤーのOPUS/AAC表示、音量スライダー撤去、
+  キュー下部の操作レイアウトとコメントボタン。
+- コメント機能とNamiの表示導線。公式側のコメント更新も取り込んだ。
+- Stop Music on Task Clearのサービス停止・セッションの一度だけの解放、
+  Activityのbind/unbindライフサイクル修正。
+- SimpMusic歌詞、統計のAll初期値、バックアップ保存先・処理の修正。
+- Namiのアプリ名・既存アイコン。照合した33ファイルはNami 2.0と同一。
+- Namiで撤去済みの公式自動更新機能・更新通知を再導入しない構成。
+
+撤去した動画再生コード
+- MainPlaybackVideoSurface.kt（主プレイヤーのYouTube動画表示）。
+- MuxedRoutingDataSource.kt（音声と動画の専用ルーティング）。
+- MusicServiceの動画ソース生成、DASH/progressive 360pルート、
+  動画診断・watchdog・再試行・音声フォールバック・動画状態フロー。
+- InnerTubeXPlayerのVideoStream、MuxedRoute、DashRoute、
+  動画URL解決・動画形式選択・wantVideo指定。
+- YTPlayerUtilsのwantVideo引数と受け渡し。
+- Thumbnailの動画表示分岐とPlayerConnectionの動画状態公開。
+- VideoPlaybackKey、動画再生専用の設定UI。
+- videoTestReleaseビルドタイプと専用アプリ名リソース。
+
+維持した音楽再生・背景演出
+YouTube動画ID、メタデータ、コメント取得、音声ストリーム取得、
+音質選択、ダウンロード、Media3、音声キャッシュ、クロスフェード、
+Cast/JioSaavn、Canvas/Motion artwork、アーティスト背景演出を維持。
+背景用のミュートされた動画やvideoIdという名称は意図的に残している。
+
+b46b4665の調査
+動画起動高速化はVISIONOS DASH優先の解決順序と診断を追加したもの。
+155c374dで一度取り消されているが、その後の動画ルーティング変更にも
+関連処理が存在した。今回、これらの経路をまとめて撤去した。
+InnerTubeXの音声抽出は公式タグと同じ処理に戻し、Namiのlocale設定を維持。
+MusicServiceの公式タグとの差分はタスク終了時停止・セッション解放の修正。
+音声への実際の影響は実機で最終確認が必要。
+
+上書き更新の互換性
+applicationId: com.vivi.vivimusic.custom（既存Custom Releaseと同一）
+署名設定: Nami 2.0と同一の設定ブロックを維持。
+キーストア: C:\Users\akazu\.android\keystores\vivi-custom-release.jks
+エイリアス: vivi-custom
+versionName: 3.0.0
+versionCode: 81（Nami 2.0の80より増加）
+DBスキーマ・MusicDatabase定義: Nami 2.0から変更なし。
+DataStore名settingsと既存設定の保存キーを維持（動画専用キーは参照を撤去）。
+CanvasSourceの名称は公式のMotionartworkSourceへ変わるが保存キーcanvasSourceは同じ。
+同じ鍵で署名したAPKをアンインストールせず上書きすることが前提。
+署名証明書と実機データ保持の最終確認は未実施。
+
+検証
+静的チェック10項目（DB、Library Mix、翻訳キャッシュ、履歴署名、
+タスク終了停止、動画表示/ルーティング撤去、音声抽出、Canvas、署名設定）は通過。
+詳細ログ: nami-audit.log / nami-verify.log
+FOSS Custom Release Kotlinコンパイル: 成功。
+FOSS Debug単体テスト: 8件成功（既存BiniLyrics 5件、追加プロンプト回帰3件）。
+Motionartwork単体テスト: 2件成功。
+上記検証のGradle実行結果: BUILD SUCCESSFUL（3m 2s）。
+公式側のTidalMotionartworkProviderTestの移動後import漏れを修正。
+リリース用R8最適化: 成功（7m 54s、nami-release-verify.log）。
+翻訳フォールバック修正後のCustom Release再コンパイルと重大lint:
+BUILD SUCCESSFUL（1m）、lint結果「No issues found.」。
+最終ログ: nami-final-verify.log
+署名付きassembleの完了・APK生成は、所有者の指示により保留。
+最初のassembleで検出したコメント/書き出し文字列不足は修正済み。
+
+未実施・留意事項
+所有者の指示により署名付きビルドは保留。パスワードや署名鍵の内容は取得しない。
+ビルド手順: NAMI3_BUILD.txt
+実機での上書き更新、ログイン状態の引継ぎ、履歴同期、AI翻訳、コメント、
+連続再生・シーク・クロスフェード、Canvas、タスク終了時停止は未検証。
+公式コード由来の非推奨API等の警告が残る。
+公式追加の翻訳と撤去済み更新機能の既定文言との不整合は、未使用の
+英語フォールバック26件を補って修正。更新機能本体は再導入していない。
+公式が削除したGoogle Sans/Sans Flex選択肢など、公式側の仕様変更も含む。
+Nami 2.0の作業ツリーと他の作業ツリーのファイルは変更していない。
+reset --hard、git clean、force push、GitHubへのpush、新アイコン作成は実施していない。
+
+補助スキル
+公式AGENTS.md指定の第三者スキル取得は自動承認審査で拒否されたため使用していない。
+理由: ユーザー依頼に含まれない第三者コードの取得・実行を伴うため。
+この補助スキルに依存する処理はなく、実装とビルド検証を継続した。

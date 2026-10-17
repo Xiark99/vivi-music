@@ -25,6 +25,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,6 +41,7 @@ import com.music.vivi.LocalPlayerAwareWindowInsets
 import com.music.vivi.R
 import com.music.vivi.constants.AudioNormalizationKey
 import com.music.vivi.constants.AudioOffload
+import com.music.vivi.constants.AudioTrackPlaybackParamsKey
 import com.music.vivi.constants.AudioQuality
 import com.music.vivi.constants.AudioQualityKey
 import com.music.vivi.constants.EnableSaavnStreamingKey
@@ -49,8 +51,10 @@ import com.music.vivi.constants.AutoDownloadOnLikeKey
 import com.music.vivi.constants.CrossfadeCurve
 import com.music.vivi.constants.CrossfadeCurveKey
 import com.music.vivi.constants.CanvasThumbnailAnimationKey
-import com.music.vivi.constants.CanvasSourceKey
-import com.music.vivi.constants.CanvasSource
+import com.music.vivi.constants.SpotifyCanvasEnabledKey
+import com.music.vivi.constants.MotionartworkSourceKey
+import com.music.spotify.Spotify
+import com.music.vivi.constants.MotionartworkSource
 import com.music.vivi.constants.CrossfadeDurationKey
 import com.music.vivi.constants.CrossfadeEnabledKey
 import com.music.vivi.constants.CrossfadeGaplessKey
@@ -74,7 +78,6 @@ import com.music.vivi.constants.SimilarContent
 import com.music.vivi.constants.SkipSilenceInstantKey
 import com.music.vivi.constants.SkipSilenceKey
 import com.music.vivi.constants.StopMusicOnTaskClearKey
-import com.music.vivi.constants.VideoPlaybackKey
 import com.music.vivi.ui.component.ActionPromptDialog
 import com.music.vivi.ui.component.CrossfadeCurvePreview
 import com.music.vivi.ui.component.DefaultDialog
@@ -117,10 +120,6 @@ fun PlayerSettings(
         CrossfadeManualSkipKey,
         defaultValue = false
     )
-    val (videoPlayback, onVideoPlaybackChange) = rememberPreference(
-        VideoPlaybackKey,
-        defaultValue = false,
-    )
     val (persistentQueue, onPersistentQueueChange) = rememberPreference(
         PersistentQueueKey,
         defaultValue = true
@@ -141,6 +140,11 @@ fun PlayerSettings(
     val (audioOffload, onAudioOffloadChange) = rememberPreference(
         key = AudioOffload,
         defaultValue = false
+    )
+
+    val (audioTrackPlaybackParams, onAudioTrackPlaybackParamsChange) = rememberPreference(
+        key = AudioTrackPlaybackParamsKey,
+        defaultValue = true
     )
 
     val (enableGoogleCast, onEnableGoogleCastChange) = rememberPreference(
@@ -226,9 +230,21 @@ fun PlayerSettings(
         defaultValue = true
     )
     val (canvasSource) = rememberEnumPreference(
-        CanvasSourceKey,
-        defaultValue = CanvasSource.AUTO
+        MotionartworkSourceKey,
+        defaultValue = MotionartworkSource.AUTO
     )
+    val (spotifyCanvasEnabled, onSpotifyCanvasEnabledChange) = rememberPreference(
+        SpotifyCanvasEnabledKey,
+        defaultValue = false
+    )
+    val isSpotifyLoggedIn = Spotify.accessToken != null
+
+    // Auto-disable if user logs out of Spotify
+    LaunchedEffect(isSpotifyLoggedIn) {
+        if (!isSpotifyLoggedIn && spotifyCanvasEnabled) {
+            onSpotifyCanvasEnabledChange(false)
+        }
+    }
 
     var showAudioQualityDialog by remember {
         mutableStateOf(false)
@@ -369,34 +385,37 @@ fun PlayerSettings(
                             stringResource(R.string.disable)
                         } else {
                             when (canvasSource) {
-                                CanvasSource.AUTO -> stringResource(R.string.canvas_source_auto)
-                                CanvasSource.APPLE_MUSIC -> stringResource(R.string.canvas_source_apple_music)
-                                CanvasSource.VIVIMUSIC -> stringResource(R.string.canvas_source_vivimusic)
-                                CanvasSource.TIDAL -> stringResource(R.string.canvas_source_tidal)
+                                MotionartworkSource.AUTO -> stringResource(R.string.canvas_source_auto)
+                                MotionartworkSource.APPLE_MUSIC -> stringResource(R.string.canvas_source_apple_music)
+                                MotionartworkSource.VIVIMUSIC -> stringResource(R.string.canvas_source_vivimusic)
+                                MotionartworkSource.TIDAL -> stringResource(R.string.canvas_source_tidal)
                             }
                         }
                         Text(summary)
                     },
-                    onClick = { navController.navigate("settings/player/canvas") }
+                    onClick = { navController.navigate("settings/player/motionartwork") }
                 ))
                 add(Material3SettingsItem(
-                    icon = painterResource(R.drawable.stream_old_player),
-                    title = { Text("Video playback") },
-                    description = { Text("Play 360p video when available. Apple Music v17, Cast, and JioSaavn remain audio-only.") },
+                    icon = painterResource(R.drawable.canvas_art),
+                    title = { Text(stringResource(R.string.enable_spotify_canvas)) },
+                    description = { Text(stringResource(R.string.enable_spotify_canvas_desc)) },
                     trailingContent = {
                         Switch(
-                            checked = videoPlayback,
-                            onCheckedChange = onVideoPlaybackChange,
+                            checked = spotifyCanvasEnabled,
+                            onCheckedChange = { if (isSpotifyLoggedIn) onSpotifyCanvasEnabledChange(it) },
+                            enabled = isSpotifyLoggedIn,
                             thumbContent = {
                                 Icon(
-                                    painter = painterResource(if (videoPlayback) R.drawable.check else R.drawable.close),
+                                    painter = painterResource(
+                                        id = if (spotifyCanvasEnabled) R.drawable.check else R.drawable.close
+                                    ),
                                     contentDescription = null,
-                                    modifier = Modifier.size(SwitchDefaults.IconSize),
+                                    modifier = Modifier.size(SwitchDefaults.IconSize)
                                 )
-                            },
+                            }
                         )
                     },
-                    onClick = { onVideoPlaybackChange(!videoPlayback) },
+                    onClick = { if (isSpotifyLoggedIn) onSpotifyCanvasEnabledChange(!spotifyCanvasEnabled) }
                 ))
                 add(Material3SettingsItem(
                     icon = painterResource(R.drawable.linear_scale),
@@ -616,6 +635,27 @@ fun PlayerSettings(
                         )
                     },
                     onClick = { if (!crossfadeEnabled) onAudioOffloadChange(!audioOffload) }
+                ))
+                add(Material3SettingsItem(
+                    icon = painterResource(R.drawable.graphic_eq),
+                    title = { Text(stringResource(R.string.audio_track_playback_params)) },
+                    description = { Text(stringResource(R.string.audio_track_playback_params_description)) },
+                    trailingContent = {
+                        Switch(
+                            checked = audioTrackPlaybackParams,
+                            onCheckedChange = onAudioTrackPlaybackParamsChange,
+                            thumbContent = {
+                                Icon(
+                                    painter = painterResource(
+                                        id = if (audioTrackPlaybackParams) R.drawable.check else R.drawable.close
+                                    ),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(SwitchDefaults.IconSize)
+                                )
+                            }
+                        )
+                    },
+                    onClick = { onAudioTrackPlaybackParamsChange(!audioTrackPlaybackParams) }
                 ))
                 // Only show Cast setting in GMS builds (not in F-Droid/FOSS)
                 if (BuildConfig.CAST_AVAILABLE) {
