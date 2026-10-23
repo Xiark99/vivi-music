@@ -63,15 +63,20 @@ object LyricsProviderRegistry {
 
     /** Maps a [PreferredLyricsProvider] enum value to its registry name, used for migration. */
     fun getProviderNameForEnum(enum: PreferredLyricsProvider): String = when (enum) {
-        PreferredLyricsProvider.LRCLIB        -> "LrcLib"
-        PreferredLyricsProvider.KUGOU         -> "Kugou"
-        PreferredLyricsProvider.BETTER_LYRICS -> "BetterLyrics"
-        PreferredLyricsProvider.MUSIXMATCH    -> "Musixmatch"
-        PreferredLyricsProvider.SIMPMUSIC     -> "SimpMusic"
-        PreferredLyricsProvider.YOULYPLUS     -> "YouLyPlus"
-        PreferredLyricsProvider.PAXSENIX      -> "Paxsenix"
-        PreferredLyricsProvider.UNISON        -> "Unison"
-        PreferredLyricsProvider.SPOTIFY       -> "Spotify"
+        PreferredLyricsProvider.LRCLIB           -> "LrcLib"
+        PreferredLyricsProvider.KUGOU            -> "Kugou"
+        PreferredLyricsProvider.BETTER_LYRICS    -> "BetterLyrics"
+        PreferredLyricsProvider.MUSIXMATCH       -> "Musixmatch"
+        PreferredLyricsProvider.YOULYPLUS        -> "YouLyPlus"
+        PreferredLyricsProvider.PAXSENIX         -> "Paxsenix"
+        PreferredLyricsProvider.UNISON           -> "Unison"
+        PreferredLyricsProvider.SPOTIFY          -> "Spotify"
+        PreferredLyricsProvider.BINI_LYRICS      -> "BiniLyrics"
+        PreferredLyricsProvider.LRC_RED          -> "LrcRed"
+        PreferredLyricsProvider.YOUTUBE_SUBTITLE -> "YouTubeSubtitle"
+        PreferredLyricsProvider.YOUTUBE_MUSIC    -> "YouTubeMusic"
+        PreferredLyricsProvider.SIMPMUSIC        -> "SimpMusic"
+
     }
 
     /** Returns the human-readable display name for a registry provider key. */
